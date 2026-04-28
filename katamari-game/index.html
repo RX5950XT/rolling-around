@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Web Katamari</title>
+    <link rel="stylesheet" href="/style.css">
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="ui-layer">
+        <div id="start-screen" class="overlay">
+            <h1>Web Katamari</h1>
+
+            <div class="controls-info">
+                <div class="key">W A S D</div>
+                <div style="align-self: center;">or</div>
+                <div class="key">Arrows</div>
+                <div style="align-self: center;">to Move</div>
+            </div>
+            <div class="controls-info">
+                <div class="key">Mouse Drag</div>
+                <div style="align-self: center;">to Rotate Camera</div>
+            </div>
+
+            <p style="margin-bottom: 40px; font-size: 1.2rem; color: #ccc;">Roll over smaller objects to grow.</p>
+            <button id="start-btn">START ROLLING</button>
+        </div>
+        <div id="pause-screen" class="overlay hidden">
+            <h1>PAUSED</h1>
+            <p style="font-size: 1.5rem;">Press <span class="key">ESC</span> to Resume</p>
+        </div>
+        <div id="hud">
+            <div id="score">Size: <span id="size-val">1.00</span>m</div>
+        </div>
+        <div id="crosshair"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
