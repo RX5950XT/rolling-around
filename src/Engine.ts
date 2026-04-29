@@ -7,7 +7,6 @@ export class Engine {
 
     private appContainer: HTMLElement;
 
-    // Auto zoom & follow parameters
     public cameraDistance: number = 10;
     public cameraHeight: number = 8;
     public cameraAngle: number = 0;
@@ -21,42 +20,39 @@ export class Engine {
     constructor() {
         this.appContainer = document.getElementById('app') as HTMLElement;
 
-        // Scene
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x87CEEB);
-        this.scene.fog = new THREE.Fog(0x87CEEB, 20, 100);
+        this.scene.fog = new THREE.FogExp2(0x87CEEB, 0.005);
 
-        // Camera
         const aspect = window.innerWidth / window.innerHeight;
-        this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 2000); // increased far plane
+        // Near plane adjusted for logarithmic buffer best practices
+        this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 10000);
 
-        // Renderer
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance", logarithmicDepthBuffer: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.appContainer.appendChild(this.renderer.domElement);
 
-        // Lights
         this.ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         this.scene.add(this.ambientLight);
 
         this.dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        this.dirLight.position.set(50, 100, 50);
+        this.dirLight.position.set(100, 200, 100);
         this.dirLight.castShadow = true;
         this.dirLight.shadow.mapSize.width = 2048;
         this.dirLight.shadow.mapSize.height = 2048;
         this.dirLight.shadow.camera.near = 0.5;
-        this.dirLight.shadow.camera.far = 500;
-        const d = 150; // Increased shadow range
+        this.dirLight.shadow.camera.far = 1000;
+        const d = 200;
         this.dirLight.shadow.camera.left = -d;
         this.dirLight.shadow.camera.right = d;
         this.dirLight.shadow.camera.top = d;
         this.dirLight.shadow.camera.bottom = -d;
+        this.dirLight.shadow.bias = -0.0001;
         this.scene.add(this.dirLight);
 
-        // Mouse Drag Control (Camera Rotation)
         let isDragging = false;
         let previousMouseX = 0;
 
@@ -70,7 +66,9 @@ export class Engine {
         document.addEventListener('mousemove', (e) => {
             if (isDragging) {
                 const deltaX = e.clientX - previousMouseX;
-                this.cameraAngle -= deltaX * 0.01;
+                // clamp extreme mouse inputs
+                const clampedDelta = Math.max(Math.min(deltaX, 100), -100);
+                this.cameraAngle -= clampedDelta * 0.01;
                 previousMouseX = e.clientX;
             }
         });
@@ -79,7 +77,6 @@ export class Engine {
             isDragging = false;
         });
 
-        // Handle resize
         window.addEventListener('resize', () => {
             this.camera.aspect = window.innerWidth / window.innerHeight;
             this.camera.updateProjectionMatrix();
@@ -87,7 +84,10 @@ export class Engine {
         });
     }
 
-    public updateCamera(playerPosition: THREE.Vector3, playerSize: number, deltaTime: number) {
+    public updateCamera(playerPosition: THREE.Vector3, playerSize: number, deltaTime: number, getTerrainHeight: (x: number, z: number) => number) {
+        // Prevent size from being NaN or Infinite
+        if (isNaN(playerSize) || !isFinite(playerSize)) playerSize = this.targetSize;
+
         this.targetSize = playerSize;
         this.currentSize += (this.targetSize - this.currentSize) * deltaTime * 2;
 
@@ -97,11 +97,19 @@ export class Engine {
         const offsetX = Math.sin(this.cameraAngle) * dynamicDistance;
         const offsetZ = Math.cos(this.cameraAngle) * dynamicDistance;
 
-        this.camera.position.set(
-            playerPosition.x + offsetX,
-            playerPosition.y + dynamicHeight,
-            playerPosition.z + offsetZ
-        );
+        const camX = playerPosition.x + offsetX;
+        const camZ = playerPosition.z + offsetZ;
+        let camY = playerPosition.y + dynamicHeight;
+
+        // --- CAMERA ANTI-CLIPPING ---
+        const terrainHeightAtCam = getTerrainHeight(camX, camZ);
+        const minHeightAllowed = terrainHeightAtCam + (this.currentSize * 0.5); // Always stay above ground
+
+        if (camY < minHeightAllowed) {
+            camY = minHeightAllowed;
+        }
+
+        this.camera.position.set(camX, camY, camZ);
 
         const lookTarget = playerPosition.clone().add(new THREE.Vector3(0, this.currentSize * 0.5, 0));
         this.camera.lookAt(lookTarget);

@@ -8,30 +8,34 @@ export class Player {
     public volume: number;
 
     public velocity: THREE.Vector3 = new THREE.Vector3();
-    public speed: number = 15; // base speed
+    public speed: number = 15;
     public maxSpeed: number = 20;
-    public friction: number = 0.95; // default friction
+    public friction: number = 0.95;
 
-    // Inputs
+    private baseGrowthRate: number = 0.05;
+
+    // Safety Limits
+    private MAX_SIZE: number = 500.0; // Prevent infinite NaN breakdown
+
     private keys: { [key: string]: boolean } = {};
 
     constructor(scene: THREE.Scene) {
         this.mesh = new THREE.Group();
 
-        // Katamari Ball
-        const geometry = new THREE.SphereGeometry(1, 32, 32);
-        // Create a toon-like material
+        const geometry = new THREE.SphereGeometry(1, 64, 64);
         const material = new THREE.MeshToonMaterial({
             color: 0x44aa44,
-            wireframe: false
-        });
+            roughness: 0.4
+        } as any);
 
         this.ballMesh = new THREE.Mesh(geometry, material);
         this.ballMesh.castShadow = true;
         this.ballMesh.receiveShadow = true;
 
         this.mesh.add(this.ballMesh);
-        this.mesh.position.y = this.size;
+
+        const initialY = 1.0;
+        this.mesh.position.y = initialY;
 
         scene.add(this.mesh);
 
@@ -50,8 +54,14 @@ export class Player {
         });
     }
 
-    public update(deltaTime: number, cameraAngle: number) {
-        // Handle input to apply force relative to camera angle
+    public update(deltaTime: number, cameraAngle: number, getTerrainHeight: (x: number, z: number) => number) {
+        if (isNaN(deltaTime) || !isFinite(deltaTime)) deltaTime = 0.016;
+
+        if (this.size < this.MAX_SIZE) {
+            const growthAmount = this.baseGrowthRate * this.size * deltaTime;
+            this.grow(growthAmount);
+        }
+
         const force = new THREE.Vector3(0, 0, 0);
 
         if (this.keys['KeyW'] || this.keys['ArrowUp']) force.z -= 1;
@@ -61,58 +71,58 @@ export class Player {
 
         if (force.lengthSq() > 0) {
             force.normalize();
-
-            // Rotate force vector to match camera angle
             force.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraAngle);
-
-            // Apply speed based on current size (bigger = feels heavier/faster momentum)
-            // Adjust acceleration formula for feel
             const acceleration = (this.speed / Math.sqrt(this.size)) * deltaTime;
             this.velocity.add(force.multiplyScalar(acceleration));
         }
 
-        // Clamp speed
         const currentMaxSpeed = this.maxSpeed * Math.sqrt(this.size);
         if (this.velocity.length() > currentMaxSpeed) {
             this.velocity.normalize().multiplyScalar(currentMaxSpeed);
         }
 
-        // Apply friction
-        this.velocity.multiplyScalar(this.friction);
+        // Safety clamp on velocity to prevent physics teleportation
+        this.velocity.clampScalar(-currentMaxSpeed * 2, currentMaxSpeed * 2);
 
-        // Update position
+        this.velocity.multiplyScalar(this.friction);
         this.mesh.position.add(this.velocity);
 
-        // Keep ball on ground
-        this.mesh.position.y = this.size;
+        // Follow rolling hills perfectly
+        let px = this.mesh.position.x;
+        let pz = this.mesh.position.z;
+        if (isNaN(px)) px = 0;
+        if (isNaN(pz)) pz = 0;
 
-        // Rotate ball based on movement
+        const terrainHeight = getTerrainHeight(px, pz);
+        this.mesh.position.y = terrainHeight + this.size;
+
         if (this.velocity.lengthSq() > 0.001) {
-            // Movement axis in XZ plane
             const moveAxis = new THREE.Vector3(-this.velocity.z, 0, this.velocity.x).normalize();
-            // Rotation amount based on distance traveled and radius
             const distance = this.velocity.length();
-            const angle = distance / this.size;
+            let angle = distance / this.size;
 
-            // Apply rotation to the ball mesh (not the group, so objects attached to group rotate with it)
+            // Safety check for rotation
+            if (isNaN(angle) || !isFinite(angle)) angle = 0;
+
             this.mesh.rotateOnWorldAxis(moveAxis, angle);
         }
     }
 
     public grow(addedVolume: number) {
+        if (isNaN(addedVolume) || !isFinite(addedVolume)) return;
+
         this.volume += addedVolume;
-        // recalculate radius (size) from volume: r = cubeRoot(V / (4/3*PI))
         this.size = Math.pow(this.volume / ((4/3) * Math.PI), 1/3);
 
-        // Note: the entire mesh group doesn't scale.
-        // We will move the mesh up and scale only the core ball if needed,
-        // but attached objects will naturally expand the bounds.
-        // For visual representation, we can just update the sphere radius or scale it
+        if (this.size > this.MAX_SIZE) {
+            this.size = this.MAX_SIZE;
+            this.volume = (4/3) * Math.PI * Math.pow(this.size, 3);
+        }
+
         this.ballMesh.scale.setScalar(this.size);
     }
 
     public attachObject(object: THREE.Mesh | THREE.Group) {
-        // Convert object's world position/rotation to local relative to the player mesh
         const worldPos = new THREE.Vector3();
         const worldQuat = new THREE.Quaternion();
         const worldScale = new THREE.Vector3();
@@ -123,12 +133,7 @@ export class Player {
 
         this.mesh.attach(object);
 
-        // update volume
-        // Simple bounding box approximation for volume
-        const box = new THREE.Box3().setFromObject(object);
-        const size = new THREE.Vector3();
-        box.getSize(size);
-        const objVol = size.x * size.y * size.z;
+        const objVol = (object as any).userData.volume || 1;
         this.grow(objVol);
     }
 }
