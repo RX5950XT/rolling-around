@@ -121,8 +121,8 @@ export class GameManager {
         if (!this.isPaused) {
             const delta = this.clock.getDelta();
 
-            this.player.update(delta, this.engine.cameraAngle);
-            this.world.update();
+            this.player.update(delta, this.engine.cameraAngle, (x, z) => this.world.getTerrainHeight(x, z));
+            this.world.update(delta);
             this.checkCollisions();
 
             const cameraDist = this.engine.cameraDistance * this.player.size;
@@ -134,7 +134,7 @@ export class GameManager {
             const isNight = this.weather.timeOfDay < 6 || this.weather.timeOfDay > 18;
             this.audio.updateAmbientSound(this.weather.isRaining, isNight);
 
-            this.engine.updateCamera(this.player.mesh.position, this.player.size, delta);
+            this.engine.updateCamera(this.player.mesh.position, this.player.size, delta, (x, z) => this.world.getTerrainHeight(x, z));
 
             this.updateUI();
         }
