@@ -7,8 +7,8 @@ export class Engine {
 
     private appContainer: HTMLElement;
 
-    public cameraDistance: number = 10;
-    public cameraHeight: number = 8;
+    public cameraDistance: number = 12;
+    public cameraHeight: number = 10;
     public cameraAngle: number = 0;
 
     private targetSize: number = 1.0;
@@ -17,20 +17,24 @@ export class Engine {
     public dirLight: THREE.DirectionalLight;
     public ambientLight: THREE.AmbientLight;
 
+    private raycaster: THREE.Raycaster;
+
     constructor() {
         this.appContainer = document.getElementById('app') as HTMLElement;
 
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x87CEEB);
-        this.scene.fog = new THREE.FogExp2(0x87CEEB, 0.005);
+        this.scene.fog = new THREE.FogExp2(0x87CEEB, 0.008);
 
         const aspect = window.innerWidth / window.innerHeight;
-        // Near plane adjusted for logarithmic buffer best practices
-        this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 10000);
+        this.camera = new THREE.PerspectiveCamera(60, aspect, 0.5, 2000);
 
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance", logarithmicDepthBuffer: true });
+        this.renderer = new THREE.WebGLRenderer({
+            antialias: false,
+            powerPreference: "high-performance"
+        });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.appContainer.appendChild(this.renderer.domElement);
@@ -41,40 +45,23 @@ export class Engine {
         this.dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
         this.dirLight.position.set(100, 200, 100);
         this.dirLight.castShadow = true;
-        this.dirLight.shadow.mapSize.width = 2048;
-        this.dirLight.shadow.mapSize.height = 2048;
+        this.dirLight.shadow.mapSize.width = 1024;
+        this.dirLight.shadow.mapSize.height = 1024;
         this.dirLight.shadow.camera.near = 0.5;
-        this.dirLight.shadow.camera.far = 1000;
-        const d = 200;
+        this.dirLight.shadow.camera.far = 800;
+        const d = 150;
         this.dirLight.shadow.camera.left = -d;
         this.dirLight.shadow.camera.right = d;
         this.dirLight.shadow.camera.top = d;
         this.dirLight.shadow.camera.bottom = -d;
-        this.dirLight.shadow.bias = -0.0001;
+        this.dirLight.shadow.bias = -0.0005;
         this.scene.add(this.dirLight);
 
-        let isDragging = false;
-        let previousMouseX = 0;
-
-        document.addEventListener('mousedown', (e) => {
-            if (e.target === this.renderer.domElement) {
-                isDragging = true;
-                previousMouseX = e.clientX;
-            }
-        });
-
+        // Pointer Lock mouse look
         document.addEventListener('mousemove', (e) => {
-            if (isDragging) {
-                const deltaX = e.clientX - previousMouseX;
-                // clamp extreme mouse inputs
-                const clampedDelta = Math.max(Math.min(deltaX, 100), -100);
-                this.cameraAngle -= clampedDelta * 0.01;
-                previousMouseX = e.clientX;
+            if (document.pointerLockElement === this.renderer.domElement) {
+                this.cameraAngle -= e.movementX * 0.002;
             }
-        });
-
-        document.addEventListener('mouseup', () => {
-            isDragging = false;
         });
 
         window.addEventListener('resize', () => {
@@ -82,29 +69,62 @@ export class Engine {
             this.camera.updateProjectionMatrix();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
+
+        this.raycaster = new THREE.Raycaster();
     }
 
-    public updateCamera(playerPosition: THREE.Vector3, playerSize: number, deltaTime: number, getTerrainHeight: (x: number, z: number) => number) {
-        // Prevent size from being NaN or Infinite
+    public requestPointerLock() {
+        this.renderer.domElement.requestPointerLock();
+    }
+
+    public exitPointerLock() {
+        if (document.pointerLockElement === this.renderer.domElement) {
+            document.exitPointerLock();
+        }
+    }
+
+    public updateCamera(
+        playerPosition: THREE.Vector3,
+        playerSize: number,
+        deltaTime: number,
+        getTerrainHeight: (x: number, z: number) => number
+    ) {
         if (isNaN(playerSize) || !isFinite(playerSize)) playerSize = this.targetSize;
 
         this.targetSize = playerSize;
-        this.currentSize += (this.targetSize - this.currentSize) * deltaTime * 2;
+        this.currentSize += (this.targetSize - this.currentSize) * Math.min(deltaTime * 3, 1);
 
-        const dynamicDistance = this.cameraDistance * this.currentSize;
+        const dynamicDistance = Math.max(this.cameraDistance * this.currentSize, this.currentSize * 2.5);
         const dynamicHeight = this.cameraHeight * this.currentSize;
 
         const offsetX = Math.sin(this.cameraAngle) * dynamicDistance;
         const offsetZ = Math.cos(this.cameraAngle) * dynamicDistance;
 
-        const camX = playerPosition.x + offsetX;
-        const camZ = playerPosition.z + offsetZ;
+        let camX = playerPosition.x + offsetX;
+        let camZ = playerPosition.z + offsetZ;
         let camY = playerPosition.y + dynamicHeight;
 
-        // --- CAMERA ANTI-CLIPPING ---
-        const terrainHeightAtCam = getTerrainHeight(camX, camZ);
-        const minHeightAllowed = terrainHeightAtCam + (this.currentSize * 0.5); // Always stay above ground
+        // Camera anti-clipping: raycast from player to camera
+        const playerToCam = new THREE.Vector3(camX, camY, camZ).sub(playerPosition);
+        const distanceToCam = playerToCam.length();
+        playerToCam.normalize();
 
+        this.raycaster.set(playerPosition, playerToCam);
+        this.raycaster.near = playerSize * 1.5;
+        this.raycaster.far = distanceToCam;
+
+        const intersects = this.raycaster.intersectObjects(this.scene.children, true);
+        if (intersects.length > 0) {
+            const hit = intersects[0];
+            const safeDist = Math.max(hit.distance - playerSize * 0.5, playerSize * 2);
+            camX = playerPosition.x + playerToCam.x * safeDist;
+            camZ = playerPosition.z + playerToCam.z * safeDist;
+            camY = playerPosition.y + playerToCam.y * safeDist;
+        }
+
+        // Anti-clipping with terrain
+        const terrainHeightAtCam = getTerrainHeight(camX, camZ);
+        const minHeightAllowed = terrainHeightAtCam + (this.currentSize * 0.3);
         if (camY < minHeightAllowed) {
             camY = minHeightAllowed;
         }

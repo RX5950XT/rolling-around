@@ -49,21 +49,15 @@ export class WorldManager {
             }
         }
 
-        // Update moving entities
         for (const entity of this.movingEntities) {
             const userData = (entity as THREE.Object3D).userData;
             if (userData.isMoving && userData.moveDir) {
-                // Determine new position
                 const newX = entity.position.x + userData.moveDir.x * userData.moveSpeed * deltaTime;
                 const newZ = entity.position.z + userData.moveDir.z * userData.moveSpeed * deltaTime;
-
-                // Keep them glued to the rolling hills
                 const newY = this.getTerrainHeight(newX, newZ) + ((entity as THREE.Object3D).userData.baseYOffset || 0);
-
                 entity.position.set(newX, newY, newZ);
 
                 const targetRot = Math.atan2(userData.moveDir.x, userData.moveDir.z);
-                // Smooth rotation
                 entity.rotation.y += (targetRot - entity.rotation.y) * deltaTime * 5;
 
                 if (Math.random() < 0.02) {
@@ -73,7 +67,6 @@ export class WorldManager {
         }
     }
 
-    // Helper for terrain height based on perlin-like noise
     public getTerrainHeight(worldX: number, worldZ: number): number {
         return Math.sin(worldX * 0.05) * Math.cos(worldZ * 0.05) * 3 + Math.sin(worldX * 0.02 + worldZ * 0.01) * 5;
     }
@@ -81,11 +74,12 @@ export class WorldManager {
     private generateChunk(cx: number, cz: number, key: string) {
         const chunkGroup = new THREE.Group();
 
-        const planeGeo = new THREE.PlaneGeometry(this.chunkSize + 1, this.chunkSize + 1, 32, 32);
+        // Exact chunkSize to eliminate overlap between adjacent chunks
+        const planeGeo = new THREE.PlaneGeometry(this.chunkSize, this.chunkSize, 32, 32);
         const posAttr = planeGeo.attributes.position;
         for (let i = 0; i < posAttr.count; i++) {
             const vx = posAttr.getX(i) + cx * this.chunkSize;
-            const vy = posAttr.getY(i) + cz * this.chunkSize; // Y is actually Z in world space
+            const vy = posAttr.getY(i) + cz * this.chunkSize;
             posAttr.setZ(i, this.getTerrainHeight(vx, vy));
         }
         planeGeo.computeVertexNormals();
@@ -100,17 +94,25 @@ export class WorldManager {
         (plane as THREE.Object3D).userData.isGround = true;
         chunkGroup.add(plane);
 
-        // Reduced density for better performance
-        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'tiny', 80, 0.3, 1.5);
-        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'small', 40, 0.8, 3.0);
-        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'medium', 15, 2.0, 10.0);
-        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'large', 4, 10.0, 25.0);
+        // Reduced density for performance
+        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'tiny', 30, 0.3, 1.5);
+        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'small', 15, 0.8, 3.0);
+        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'medium', 6, 2.0, 10.0);
+        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'large', 2, 10.0, 25.0);
 
         this.scene.add(chunkGroup);
         this.activeChunks.set(key, chunkGroup);
     }
 
-    private populateCategory(chunkGroup: THREE.Group, chunkWorldX: number, chunkWorldZ: number, category: 'tiny'|'small'|'medium'|'large', count: number, minScale: number, maxScale: number) {
+    private populateCategory(
+        chunkGroup: THREE.Group,
+        chunkWorldX: number,
+        chunkWorldZ: number,
+        category: 'tiny' | 'small' | 'medium' | 'large',
+        count: number,
+        minScale: number,
+        maxScale: number
+    ) {
         for (let i = 0; i < count; i++) {
             const generated = ObjectFactory.createRandomObject(category);
             const obj = generated.mesh;
@@ -120,7 +122,7 @@ export class WorldManager {
 
             obj.rotation.y = Math.random() * Math.PI * 2;
 
-            const scaleBase = Math.pow(Math.random(), 3); // Bias towards smaller sizes even more for density
+            const scaleBase = Math.pow(Math.random(), 3);
             const scale = scaleBase * (maxScale - minScale) + minScale;
             obj.scale.setScalar(scale);
 
@@ -136,7 +138,7 @@ export class WorldManager {
             const terrainHeight = this.getTerrainHeight(worldX, worldZ);
 
             const baseYOffset = obj.position.y * scale;
-            (obj as THREE.Object3D).userData.baseYOffset = baseYOffset; // Store for moving entities
+            (obj as THREE.Object3D).userData.baseYOffset = baseYOffset;
 
             obj.position.set(worldX, terrainHeight + baseYOffset, worldZ);
 

@@ -81,6 +81,15 @@ export class ObjectFactory {
         (obj as any).userData.radius = radius;
         (obj as any).userData.isMoving = isMoving;
 
+        // Shadow culling: only medium/large objects cast shadows
+        if (sizeCategory === 'tiny' || sizeCategory === 'small') {
+            obj.traverse((child) => {
+                if ((child as THREE.Mesh).isMesh) {
+                    (child as THREE.Mesh).castShadow = false;
+                }
+            });
+        }
+
         if (isMoving) {
             // Give it a random target direction
             (obj as any).userData.moveDir = new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
