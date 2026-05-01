@@ -36,6 +36,9 @@ export class GameManager {
         const startBtn = document.getElementById('start-btn')!;
         startBtn.addEventListener('click', () => this.startGame());
 
+        const resumeBtn = document.getElementById('resume-btn')!;
+        resumeBtn.addEventListener('click', () => this.togglePause());
+
         this.initControls();
 
         // Start animation loop
@@ -91,11 +94,11 @@ export class GameManager {
 
             const distSq = playerPos.distanceToSquared(objPos);
 
-            const objRadius = (obj as any).userData.radius || 1;
+            const objRadius = (obj as THREE.Object3D).userData.radius || 1;
             const collisionDistSq = Math.pow(playerRadius + objRadius, 2);
 
             if (distSq < collisionDistSq) {
-                const objVol = (obj as any).userData.volume || 1;
+                const objVol = (obj as THREE.Object3D).userData.volume || 1;
 
                 if (playerVol > objVol) {
                     this.player.attachObject(obj);
@@ -111,7 +114,13 @@ export class GameManager {
         }
 
         for (let i = toRemove.length - 1; i >= 0; i--) {
+            const removedObj = this.world.collidables[toRemove[i]];
             this.world.collidables.splice(toRemove[i], 1);
+            // Also clean up from movingEntities if it was a moving object
+            const movingIndex = this.world.movingEntities.indexOf(removedObj);
+            if (movingIndex !== -1) {
+                this.world.movingEntities.splice(movingIndex, 1);
+            }
         }
     }
 
@@ -140,5 +149,5 @@ export class GameManager {
         }
 
         this.engine.renderer.render(this.engine.scene, this.engine.camera);
-    }
+    };
 }

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Katamari Web</title>
+    <title>Rolling Around</title>
     <link rel="stylesheet" href="/style.css">
   </head>
   <body>
@@ -12,8 +12,11 @@
 
         <div id="start-screen" class="overlay">
             <div class="menu-card">
-                <h1>Katamari</h1>
-                <p class="subtitle">Roll everything. Grow endlessly.</p>
+                <div class="logo-container">
+                    <div class="logo-ball"></div>
+                </div>
+                <h1>Rolling Around</h1>
+                <p class="subtitle">滾動一切，無限成長！</p>
 
                 <div class="controls-grid">
                     <div class="control-item">
@@ -21,36 +24,42 @@
                             <div class="key">W</div><div class="key">A</div><div class="key">S</div><div class="key">D</div>
                         </div>
                     </div>
-                    <div class="control-desc">Move around</div>
+                    <div class="control-desc">移動角色</div>
 
                     <div class="control-item">
-                        <div class="key">Mouse Drag</div>
+                        <div class="key special">滑鼠拖曳</div>
                     </div>
-                    <div class="control-desc">Rotate camera</div>
+                    <div class="control-desc">旋轉視角</div>
 
                     <div class="control-item">
                         <div class="key">ESC</div>
                     </div>
-                    <div class="control-desc">Pause game</div>
+                    <div class="control-desc">暫停遊戲</div>
                 </div>
 
-                <button id="start-btn">Start Rolling</button>
+                <button id="start-btn">開始滾動</button>
             </div>
         </div>
 
         <div id="pause-screen" class="overlay hidden">
             <div class="menu-card">
-                <h1>Paused</h1>
-                <p class="subtitle">Take a breather.</p>
-                <button id="resume-btn" onclick="document.dispatchEvent(new KeyboardEvent('keydown', {'key': 'Escape', 'code': 'Escape'}))">Resume Game</button>
+                <div class="logo-container small">
+                    <div class="logo-ball"></div>
+                </div>
+                <h1>暫停中</h1>
+                <p class="subtitle">休息一下，待會再滾！</p>
+                <button id="resume-btn">繼續遊戲</button>
             </div>
         </div>
 
         <div id="hud">
-            <div class="hud-label">Current Size</div>
-            <div>
-                <span id="size-val" class="hud-value">1.00</span>
-                <span class="hud-unit">m</span>
+            <div class="hud-icon">&#127775;</div>
+            <div class="hud-content">
+                <div class="hud-label">目前大小</div>
+                <div>
+                    <span id="size-val" class="hud-value">1.00</span>
+                    <span class="hud-unit">m</span>
+                </div>
             </div>
         </div>
 

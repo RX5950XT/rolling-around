@@ -8,14 +8,14 @@ export class Player {
     public volume: number;
 
     public velocity: THREE.Vector3 = new THREE.Vector3();
-    public speed: number = 15;
-    public maxSpeed: number = 20;
-    public friction: number = 0.95;
+    public speed: number = 35;
+    public maxSpeed: number = 50;
+    public friction: number = 0.3;
 
     private baseGrowthRate: number = 0.05;
 
     // Safety Limits
-    private MAX_SIZE: number = 500.0; // Prevent infinite NaN breakdown
+    private MAX_SIZE: number = 500.0;
 
     private keys: { [key: string]: boolean } = {};
 
@@ -24,9 +24,8 @@ export class Player {
 
         const geometry = new THREE.SphereGeometry(1, 64, 64);
         const material = new THREE.MeshToonMaterial({
-            color: 0x44aa44,
-            roughness: 0.4
-        } as any);
+            color: 0xFF6B9D,
+        });
 
         this.ballMesh = new THREE.Mesh(geometry, material);
         this.ballMesh.castShadow = true;
@@ -84,8 +83,11 @@ export class Player {
         // Safety clamp on velocity to prevent physics teleportation
         this.velocity.clampScalar(-currentMaxSpeed * 2, currentMaxSpeed * 2);
 
-        this.velocity.multiplyScalar(this.friction);
-        this.mesh.position.add(this.velocity);
+        // Time-based friction for frame-rate independence
+        this.velocity.multiplyScalar(Math.pow(this.friction, deltaTime));
+
+        // Apply velocity with deltaTime for consistent movement speed
+        this.mesh.position.add(this.velocity.clone().multiplyScalar(deltaTime));
 
         // Follow rolling hills perfectly
         let px = this.mesh.position.x;
@@ -98,7 +100,7 @@ export class Player {
 
         if (this.velocity.lengthSq() > 0.001) {
             const moveAxis = new THREE.Vector3(-this.velocity.z, 0, this.velocity.x).normalize();
-            const distance = this.velocity.length();
+            const distance = this.velocity.length() * deltaTime;
             let angle = distance / this.size;
 
             // Safety check for rotation
@@ -133,7 +135,7 @@ export class Player {
 
         this.mesh.attach(object);
 
-        const objVol = (object as any).userData.volume || 1;
+        const objVol = (object as THREE.Object3D).userData.volume || 1;
         this.grow(objVol);
     }
 }

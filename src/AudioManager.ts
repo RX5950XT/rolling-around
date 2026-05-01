@@ -6,9 +6,10 @@ export class AudioManager {
     // Ambient
     private ambientOsc: OscillatorNode | null = null;
     private ambientGain: GainNode;
+    private ambientFilter: BiquadFilterNode;
 
     constructor() {
-        this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        this.ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
 
         // Setup Rolling Sound
         this.rollingGain = this.ctx.createGain();
@@ -19,6 +20,11 @@ export class AudioManager {
         this.ambientGain = this.ctx.createGain();
         this.ambientGain.gain.value = 0;
         this.ambientGain.connect(this.ctx.destination);
+
+        this.ambientFilter = this.ctx.createBiquadFilter();
+        this.ambientFilter.type = 'lowpass';
+        this.ambientFilter.frequency.value = 400;
+        this.ambientFilter.connect(this.ambientGain);
     }
 
     public init() {
@@ -40,13 +46,7 @@ export class AudioManager {
             this.ambientOsc.type = 'sawtooth';
             this.ambientOsc.frequency.value = 100;
 
-            // Add a lowpass filter for wind effect
-            const filter = this.ctx.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.value = 400;
-
-            this.ambientOsc.connect(filter);
-            filter.connect(this.ambientGain);
+            this.ambientOsc.connect(this.ambientFilter);
             this.ambientOsc.start();
         }
     }
@@ -91,20 +91,23 @@ export class AudioManager {
 
         let targetGain = 0;
         let targetFreq = 100;
+        let filterFreq = 400;
 
         if (isRaining) {
             targetGain = 0.3; // Louder for rain
             targetFreq = 600; // Harsher sound
-            this.ambientOsc.type = 'square';
+            filterFreq = 800; // Brighter filter for rain
         } else if (isNight) {
             targetGain = 0.1; // Quiet wind
             targetFreq = 50;  // Deep sound
-            this.ambientOsc.type = 'sawtooth';
+            filterFreq = 200; // Darker filter for night
         } else {
             targetGain = 0; // Quiet day
+            filterFreq = 400;
         }
 
         this.ambientGain.gain.setTargetAtTime(targetGain, this.ctx.currentTime, 1.0);
         this.ambientOsc.frequency.setTargetAtTime(targetFreq, this.ctx.currentTime, 1.0);
+        this.ambientFilter.frequency.setTargetAtTime(filterFreq, this.ctx.currentTime, 1.0);
     }
 }

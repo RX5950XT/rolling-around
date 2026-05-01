@@ -51,14 +51,14 @@ export class WorldManager {
 
         // Update moving entities
         for (const entity of this.movingEntities) {
-            const userData = (entity as any).userData;
+            const userData = (entity as THREE.Object3D).userData;
             if (userData.isMoving && userData.moveDir) {
                 // Determine new position
                 const newX = entity.position.x + userData.moveDir.x * userData.moveSpeed * deltaTime;
                 const newZ = entity.position.z + userData.moveDir.z * userData.moveSpeed * deltaTime;
 
                 // Keep them glued to the rolling hills
-                const newY = this.getTerrainHeight(newX, newZ) + ((entity as any).userData.baseYOffset || 0);
+                const newY = this.getTerrainHeight(newX, newZ) + ((entity as THREE.Object3D).userData.baseYOffset || 0);
 
                 entity.position.set(newX, newY, newZ);
 
@@ -97,10 +97,11 @@ export class WorldManager {
         const chunkWorldZ = cz * this.chunkSize + this.chunkSize / 2;
         plane.position.set(chunkWorldX, 0, chunkWorldZ);
         plane.receiveShadow = true;
+        (plane as THREE.Object3D).userData.isGround = true;
         chunkGroup.add(plane);
 
-        // Density tweaked for max clutter feeling
-        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'tiny', 150, 0.3, 1.5);
+        // Reduced density for better performance
+        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'tiny', 80, 0.3, 1.5);
         this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'small', 40, 0.8, 3.0);
         this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'medium', 15, 2.0, 10.0);
         this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'large', 4, 10.0, 25.0);
@@ -123,11 +124,11 @@ export class WorldManager {
             const scale = scaleBase * (maxScale - minScale) + minScale;
             obj.scale.setScalar(scale);
 
-            if ((obj as any).userData.volume) {
-                (obj as any).userData.volume *= Math.pow(scale, 3);
+            if ((obj as THREE.Object3D).userData.volume) {
+                (obj as THREE.Object3D).userData.volume *= Math.pow(scale, 3);
             }
-            if ((obj as any).userData.radius) {
-                (obj as any).userData.radius *= scale;
+            if ((obj as THREE.Object3D).userData.radius) {
+                (obj as THREE.Object3D).userData.radius *= scale;
             }
 
             const worldX = chunkWorldX + offsetX;
@@ -135,7 +136,7 @@ export class WorldManager {
             const terrainHeight = this.getTerrainHeight(worldX, worldZ);
 
             const baseYOffset = obj.position.y * scale;
-            (obj as any).userData.baseYOffset = baseYOffset; // Store for moving entities
+            (obj as THREE.Object3D).userData.baseYOffset = baseYOffset; // Store for moving entities
 
             obj.position.set(worldX, terrainHeight + baseYOffset, worldZ);
 
@@ -151,7 +152,7 @@ export class WorldManager {
     private destroyChunk(key: string, chunk: THREE.Group) {
         const objectsToRemove = new Set<THREE.Object3D>();
         chunk.children.forEach(child => {
-            if (child !== chunk.children[0]) {
+            if (!(child as THREE.Object3D).userData.isGround) {
                 objectsToRemove.add(child);
             }
         });
