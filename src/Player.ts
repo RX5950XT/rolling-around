@@ -65,12 +65,12 @@ export class Player {
         if (force.lengthSq() > 0) {
             force.normalize();
             force.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraAngle);
-            const scaleFactor = Math.max(1, Math.pow(this.size, 0.3));
+            const scaleFactor = Math.max(1, Math.pow(this.size, 0.15));
             const acceleration = (this.speed / scaleFactor) * deltaTime;
             this.velocity.add(force.multiplyScalar(acceleration));
         }
 
-        const currentMaxSpeed = this.maxSpeed * Math.sqrt(this.size);
+        const currentMaxSpeed = this.maxSpeed * Math.pow(this.size, 0.6);
         if (this.velocity.length() > currentMaxSpeed) {
             this.velocity.normalize().multiplyScalar(currentMaxSpeed);
         }

@@ -15,6 +15,9 @@ export class Engine {
     private targetSize: number = 1.0;
     private currentSize: number = 1.0;
 
+    private targetCamDistance: number = 12;
+    private currentCamDistance: number = 12;
+
     public dirLight: THREE.DirectionalLight;
     public ambientLight: THREE.AmbientLight;
 
@@ -113,21 +116,24 @@ export class Engine {
         this.targetSize = playerSize;
         this.currentSize += (this.targetSize - this.currentSize) * Math.min(deltaTime * 3, 1);
 
-        // Dynamic far plane: ensure large players can see the world
+        // Dynamic far plane: only update when change is significant to avoid z-flicker
         const farPlane = Math.max(2000, this.currentSize * 25);
-        if (this.camera.far !== farPlane) {
+        if (Math.abs(this.camera.far - farPlane) > 100) {
             this.camera.far = farPlane;
             this.camera.updateProjectionMatrix();
         }
 
-        // Dynamic shadow range for large players
+        // Dynamic shadow range: only update when change is significant
         const shadowFar = Math.max(800, this.currentSize * 12);
-        if (this.dirLight.shadow.camera.far !== shadowFar) {
+        if (Math.abs(this.dirLight.shadow.camera.far - shadowFar) > 100) {
             this.dirLight.shadow.camera.far = shadowFar;
             this.dirLight.shadow.camera.updateProjectionMatrix();
         }
 
-        const dynamicDistance = Math.max(this.cameraDistance * this.currentSize, this.currentSize * 2.5);
+        const idealDistance = Math.max(this.cameraDistance * this.currentSize, this.currentSize * 2.5);
+        this.targetCamDistance = idealDistance;
+        this.currentCamDistance += (this.targetCamDistance - this.currentCamDistance) * Math.min(deltaTime * 4, 1);
+        const dynamicDistance = this.currentCamDistance;
 
         const horizontalDist = dynamicDistance * Math.cos(this.cameraPitch);
         const verticalDist = dynamicDistance * Math.sin(this.cameraPitch);
@@ -161,9 +167,12 @@ export class Engine {
         });
         if (hit) {
             const safeDist = Math.max(hit.distance - playerSize * 0.5, playerSize * 2);
-            camX = playerPosition.x + playerToCam.x * safeDist;
-            camZ = playerPosition.z + playerToCam.z * safeDist;
-            camY = playerPosition.y + playerToCam.y * safeDist;
+            // Smoothly pull camera distance toward safe distance
+            this.currentCamDistance += (safeDist - this.currentCamDistance) * Math.min(deltaTime * 8, 1);
+            const smoothDist = this.currentCamDistance;
+            camX = playerPosition.x + playerToCam.x * smoothDist;
+            camZ = playerPosition.z + playerToCam.z * smoothDist;
+            camY = playerPosition.y + playerToCam.y * smoothDist;
         }
 
         // Anti-clipping with terrain

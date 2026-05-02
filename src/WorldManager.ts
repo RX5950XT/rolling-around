@@ -81,6 +81,38 @@ export class WorldManager {
         return 5;
     }
 
+    private getSpawnCount(baseCount: number, category: 'tiny' | 'small' | 'medium' | 'large'): number {
+        const s = this.player.size;
+        let multiplier = 1.0;
+        switch (category) {
+            case 'tiny':
+                if (s < 3) multiplier = 3.0;
+                else if (s < 15) multiplier = 1.5;
+                else if (s < 50) multiplier = 0.8;
+                else multiplier = 0.3;
+                break;
+            case 'small':
+                if (s < 3) multiplier = 2.0;
+                else if (s < 15) multiplier = 1.5;
+                else if (s < 50) multiplier = 1.0;
+                else multiplier = 0.5;
+                break;
+            case 'medium':
+                if (s < 3) multiplier = 0.3;
+                else if (s < 15) multiplier = 0.8;
+                else if (s < 50) multiplier = 1.2;
+                else multiplier = 2.0;
+                break;
+            case 'large':
+                if (s < 3) multiplier = 0.0;
+                else if (s < 15) multiplier = 0.3;
+                else if (s < 50) multiplier = 0.8;
+                else multiplier = 2.0;
+                break;
+        }
+        return Math.floor(baseCount * multiplier);
+    }
+
     private generateChunk(cx: number, cz: number, key: string, withObjects: boolean = true) {
         const chunkGroup = new THREE.Group();
 
@@ -106,14 +138,15 @@ export class WorldManager {
         chunkGroup.add(plane);
 
         if (withObjects) {
-            // Higher density for a richer world
-            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'tiny', 35, 0.3, 1.5);
-            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'small', 18, 0.8, 3.0);
-            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'medium', 7, 2.0, 10.0);
-            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'large', 2, 10.0, 25.0);
+            // Dynamic spawn counts based on player size
+            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'tiny', this.getSpawnCount(35, 'tiny'), 0.3, 1.5);
+            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'small', this.getSpawnCount(18, 'small'), 0.8, 3.0);
+            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'medium', this.getSpawnCount(7, 'medium'), 2.0, 10.0);
+            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'large', this.getSpawnCount(2, 'large'), 10.0, 25.0);
         } else {
             // Distant chunks: only large landmarks so the world doesn't look empty
-            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'large', 1, 15.0, 30.0);
+            const distantLargeCount = this.player.size < 50 ? 0 : 1;
+            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'large', distantLargeCount, 15.0, 30.0);
         }
 
         this.scene.add(chunkGroup);
