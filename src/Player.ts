@@ -90,22 +90,20 @@ export class Player {
         if (this.keys['KeyA'] || this.keys['ArrowLeft']) force.x -= 1;
         if (this.keys['KeyD'] || this.keys['ArrowRight']) force.x += 1;
 
-        const maxSpeedFactor = this.size < 15 ? Math.pow(this.size, 0.6) : Math.pow(this.size, 0.75);
-        const currentMaxSpeed = this.maxSpeed * maxSpeedFactor;
+        // Unified speed formula: bigger ball = faster
+        // Acceleration barely decays: size^0.01 means 200m only reduces by ~6%
+        const scaleFactor = Math.max(1, Math.pow(this.size, 0.01));
+        const acceleration = (this.speed / scaleFactor) * deltaTime;
+
+        // Max speed grows strongly: size^0.88 is close to linear
+        const currentMaxSpeed = this.maxSpeed * Math.pow(this.size, 0.88);
 
         if (force.lengthSq() > 0) {
             force.normalize();
             force.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraAngle);
-            const scaleFactor = this.size < 15
-                ? Math.max(1, Math.pow(this.size, 0.15))
-                : Math.max(1, Math.pow(this.size, 0.05));
-            const acceleration = (this.speed / scaleFactor) * deltaTime;
             this.velocity.add(force.multiplyScalar(acceleration));
         }
 
-        if (this.velocity.length() > currentMaxSpeed) {
-            this.velocity.normalize().multiplyScalar(currentMaxSpeed);
-        }
         if (this.velocity.length() > currentMaxSpeed) {
             this.velocity.normalize().multiplyScalar(currentMaxSpeed);
         }
