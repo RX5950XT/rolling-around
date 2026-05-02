@@ -13,6 +13,12 @@ export class Player {
     public friction: number = 0.15;
     public weatherFrictionModifier: number = 1.0;
 
+    public verticalVelocity: number = 0;
+    public isGrounded: boolean = true;
+    private jumpForce: number = 25;
+    private gravity: number = -60;
+    private onJump?: () => void;
+
     private baseGrowthRate: number = 0.05;
     private MAX_SIZE: number = 500.0;
 
@@ -38,14 +44,31 @@ export class Player {
         this.initControls();
     }
 
+    public setJumpCallback(cb: () => void) {
+        this.onJump = cb;
+    }
+
     private initControls() {
-        window.addEventListener('keydown', (e) => { this.keys[e.code] = true; });
+        window.addEventListener('keydown', (e) => {
+            this.keys[e.code] = true;
+            if (e.code === 'Space') {
+                this.attemptJump();
+            }
+        });
         window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
         window.addEventListener('blur', () => {
             for (const key in this.keys) {
                 this.keys[key] = false;
             }
         });
+    }
+
+    private attemptJump() {
+        if (this.isGrounded) {
+            this.verticalVelocity = this.jumpForce;
+            this.isGrounded = false;
+            if (this.onJump) this.onJump();
+        }
     }
 
     public update(deltaTime: number, cameraAngle: number, getTerrainHeight: (x: number, z: number) => number) {
@@ -90,12 +113,24 @@ export class Player {
         if (isNaN(pz)) pz = 0;
 
         const terrainHeight = getTerrainHeight(px, pz);
-        this.mesh.position.y = terrainHeight + this.size * 0.9;
+        const groundY = terrainHeight + this.size * 0.9;
+
+        if (!this.isGrounded) {
+            this.verticalVelocity += this.gravity * deltaTime;
+            this.mesh.position.y += this.verticalVelocity * deltaTime;
+            if (this.mesh.position.y <= groundY) {
+                this.mesh.position.y = groundY;
+                this.verticalVelocity = 0;
+                this.isGrounded = true;
+            }
+        } else {
+            this.mesh.position.y = groundY;
+        }
 
         if (this.velocity.lengthSq() > 0.001) {
             const moveAxis = new THREE.Vector3(-this.velocity.z, 0, this.velocity.x).normalize();
             const distance = this.velocity.length() * deltaTime;
-            let angle = distance / this.size;
+            let angle = -distance / this.size;
             if (isNaN(angle) || !isFinite(angle)) angle = 0;
             this.mesh.rotateOnWorldAxis(moveAxis, angle);
         }

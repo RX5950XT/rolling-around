@@ -86,28 +86,35 @@ export class WorldManager {
         let multiplier = 1.0;
         switch (category) {
             case 'tiny':
-                if (s < 3) multiplier = 3.0;
-                else if (s < 15) multiplier = 1.5;
-                else if (s < 50) multiplier = 0.8;
-                else multiplier = 0.3;
+                if (s < 2) multiplier = 4.0;
+                else if (s < 5) multiplier = 2.5;
+                else if (s < 10) multiplier = 1.5;
+                else if (s < 30) multiplier = 0.8;
+                else if (s < 80) multiplier = 0.4;
+                else multiplier = 0.15;
                 break;
             case 'small':
-                if (s < 3) multiplier = 2.0;
-                else if (s < 15) multiplier = 1.5;
-                else if (s < 50) multiplier = 1.0;
-                else multiplier = 0.5;
+                if (s < 2) multiplier = 2.5;
+                else if (s < 5) multiplier = 2.0;
+                else if (s < 10) multiplier = 1.5;
+                else if (s < 30) multiplier = 1.0;
+                else if (s < 80) multiplier = 0.6;
+                else multiplier = 0.3;
                 break;
             case 'medium':
-                if (s < 3) multiplier = 0.3;
-                else if (s < 15) multiplier = 0.8;
-                else if (s < 50) multiplier = 1.2;
-                else multiplier = 2.0;
+                if (s < 2) multiplier = 0.0;
+                else if (s < 5) multiplier = 0.3;
+                else if (s < 10) multiplier = 0.8;
+                else if (s < 30) multiplier = 1.5;
+                else if (s < 80) multiplier = 2.5;
+                else multiplier = 3.0;
                 break;
             case 'large':
-                if (s < 3) multiplier = 0.0;
-                else if (s < 15) multiplier = 0.3;
-                else if (s < 50) multiplier = 0.8;
-                else multiplier = 2.0;
+                if (s < 5) multiplier = 0.0;
+                else if (s < 10) multiplier = 0.2;
+                else if (s < 30) multiplier = 0.6;
+                else if (s < 80) multiplier = 1.5;
+                else multiplier = 3.0;
                 break;
         }
         return Math.floor(baseCount * multiplier);
@@ -149,8 +156,50 @@ export class WorldManager {
             this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'large', distantLargeCount, 15.0, 30.0);
         }
 
+        if (withObjects) {
+            this.generateMazeWalls(chunkGroup, chunkWorldX, chunkWorldZ);
+        }
+
         this.scene.add(chunkGroup);
         this.activeChunks.set(key, chunkGroup);
+    }
+
+    private generateMazeWalls(chunkGroup: THREE.Group, chunkWorldX: number, chunkWorldZ: number) {
+        const wallMat = new THREE.MeshToonMaterial({ color: 0x8b7355 });
+        const wallCount = Math.floor(Math.random() * 4) + 3;
+
+        for (let i = 0; i < wallCount; i++) {
+            const isHorizontal = Math.random() > 0.5;
+            const length = Math.random() * 25 + 15;
+            const height = Math.random() * 7 + 5;
+            const width = Math.random() * 1.5 + 1.5;
+
+            const geo = new THREE.BoxGeometry(
+                isHorizontal ? length : width,
+                height,
+                isHorizontal ? width : length
+            );
+            const wall = new THREE.Mesh(geo, wallMat);
+
+            const offsetX = (Math.random() - 0.5) * (this.chunkSize - length);
+            const offsetZ = (Math.random() - 0.5) * (this.chunkSize - length);
+            const worldX = chunkWorldX + offsetX;
+            const worldZ = chunkWorldZ + offsetZ;
+            const terrainHeight = this.getTerrainHeight(worldX, worldZ);
+
+            wall.position.set(worldX, terrainHeight + height / 2, worldZ);
+            wall.castShadow = true;
+            wall.receiveShadow = true;
+
+            const volume = length * height * width;
+            const radius = Math.max(isHorizontal ? length : width, isHorizontal ? width : length) / 2 * 0.6;
+            wall.userData.volume = volume;
+            wall.userData.radius = radius;
+            wall.userData.baseYOffset = height / 2;
+
+            chunkGroup.add(wall);
+            this.collidables.push(wall);
+        }
     }
 
     private populateCategory(

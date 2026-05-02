@@ -38,6 +38,7 @@ export class GameManager {
         const resumeBtn = document.getElementById('resume-btn')!;
         resumeBtn.addEventListener('click', () => this.togglePause());
 
+        this.player.setJumpCallback(() => this.audio.playJumpSound());
         this.initControls();
         this.animate();
     }
@@ -45,7 +46,7 @@ export class GameManager {
     private initControls() {
         window.addEventListener('keydown', (e) => {
             if (e.code === 'Escape') {
-                this.pauseGame();
+                this.togglePause();
             }
         });
 

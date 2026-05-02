@@ -135,6 +135,27 @@ export class AudioManager {
         this.rollingFilter.frequency.setTargetAtTime(200 + speedRatio * 600, now, 0.1);
     }
 
+    public playJumpSound() {
+        if (this.ctx.state === 'suspended') return;
+        const now = this.ctx.currentTime;
+
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.exponentialRampToValueAtTime(600, now + 0.08);
+        osc.frequency.exponentialRampToValueAtTime(200, now + 0.25);
+
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.3, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.3);
+    }
+
     public playPopSound(size: number) {
         if (this.ctx.state === 'suspended') return;
         const now = this.ctx.currentTime;
