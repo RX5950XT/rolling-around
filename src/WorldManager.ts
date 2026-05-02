@@ -102,19 +102,20 @@ export class WorldManager {
                 else multiplier = 0.3;
                 break;
             case 'medium':
-                if (s < 2) multiplier = 0.0;
-                else if (s < 5) multiplier = 0.3;
-                else if (s < 10) multiplier = 0.8;
-                else if (s < 30) multiplier = 1.5;
-                else if (s < 80) multiplier = 2.5;
-                else multiplier = 3.0;
+                if (s < 2) multiplier = 0.5;
+                else if (s < 5) multiplier = 0.8;
+                else if (s < 10) multiplier = 1.2;
+                else if (s < 30) multiplier = 2.0;
+                else if (s < 80) multiplier = 3.0;
+                else multiplier = 4.0;
                 break;
             case 'large':
-                if (s < 5) multiplier = 0.0;
-                else if (s < 10) multiplier = 0.2;
-                else if (s < 30) multiplier = 0.6;
-                else if (s < 80) multiplier = 1.5;
-                else multiplier = 3.0;
+                if (s < 2) multiplier = 0.5;
+                else if (s < 5) multiplier = 0.8;
+                else if (s < 10) multiplier = 1.0;
+                else if (s < 30) multiplier = 1.5;
+                else if (s < 80) multiplier = 2.5;
+                else multiplier = 3.5;
                 break;
         }
         return Math.floor(baseCount * multiplier);
