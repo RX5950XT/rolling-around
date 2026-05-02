@@ -75,7 +75,8 @@ export class ObjectFactory {
         box.getSize(size);
 
         const volume = size.x * size.y * size.z;
-        const radius = Math.max(size.x, size.z) / 2;
+        // Shrink collision radius by 40% to eliminate "thick air wall" feel
+        const radius = Math.max(size.x, size.z) / 2 * 0.6;
 
         (obj as any).userData.volume = volume;
         (obj as any).userData.radius = radius;

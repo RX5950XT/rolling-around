@@ -106,11 +106,14 @@ export class WorldManager {
         chunkGroup.add(plane);
 
         if (withObjects) {
-            // Further reduced density for smooth performance
-            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'tiny', 12, 0.3, 1.5);
-            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'small', 6, 0.8, 3.0);
-            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'medium', 2, 2.0, 10.0);
-            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'large', 1, 10.0, 25.0);
+            // Higher density for a richer world
+            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'tiny', 35, 0.3, 1.5);
+            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'small', 18, 0.8, 3.0);
+            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'medium', 7, 2.0, 10.0);
+            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'large', 2, 10.0, 25.0);
+        } else {
+            // Distant chunks: only large landmarks so the world doesn't look empty
+            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'large', 1, 15.0, 30.0);
         }
 
         this.scene.add(chunkGroup);
