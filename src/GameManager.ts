@@ -216,7 +216,7 @@ export class GameManager {
 
             const baseMaxSpeed = this.player.maxSpeed * Math.pow(this.player.size, 0.95);
             let multiplier = 1.0;
-            if (this.player.size >= 200) multiplier = 30.0;
+            if (this.player.size >= 200) multiplier = 100.0;
             else if (this.player.size >= 100) multiplier = 10.0;
             else if (this.player.size >= 50) multiplier = 5.0;
             const currentMaxSpeed = baseMaxSpeed * multiplier;

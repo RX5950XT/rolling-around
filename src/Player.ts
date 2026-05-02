@@ -101,7 +101,7 @@ export class Player {
 
         const baseMaxSpeed = this.maxSpeed * Math.pow(this.size, 0.95);
         let multiplier = 1.0;
-        if (this.size >= 200) multiplier = 30.0;
+        if (this.size >= 200) multiplier = 100.0;
         else if (this.size >= 100) multiplier = 10.0;
         else if (this.size >= 50) multiplier = 5.0;
         const currentMaxSpeed = baseMaxSpeed * multiplier;

@@ -42,8 +42,9 @@
 
 ### 物理系統
 - `velocity` 單位為 `units/sec`
-- 位移公式：`position.add(velocity.clone().multiplyScalar(deltaTime))`
+- 位移公式：直接分量加法 `position.x += velocity.x * deltaTime`
 - 滾動角度：`angle = (velocity.length() * deltaTime) / size`
+- 速度倍率：50m=5x, 100m=10x, **200m+=100x**（極端加速）
 - 調整 `speed`、`maxSpeed`、`friction` 時必須測試不同幀率（30/60/144Hz）
 
 ### 碰撞檢測

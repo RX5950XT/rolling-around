@@ -48,7 +48,7 @@ Rolling Around 是一個基於 Three.js 的 3D 滾球收集遊戲，使用 TypeS
   - size < 50m: multiplier = 1.0
   - 50-100m: multiplier = 5.0
   - 100-200m: multiplier = 10.0
-  - 200m+: multiplier = 30.0
+  - 200m+: multiplier = 100.0
 - **加速度公式**: `120 / size^0.01`（幾乎不衰減，200m 仍有 113/sec）
 - `friction = 0.15` — 每秒摩擦係數
 - `weatherFrictionModifier = 1.0` — 天氣對摩擦的乘數（由 WeatherSystem 控制）
