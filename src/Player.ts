@@ -64,9 +64,13 @@ export class Player {
         });
     }
 
+    private getJumpForce(): number {
+        return this.jumpForce * Math.pow(this.size, 0.4);
+    }
+
     private attemptJump() {
         if (this.isGrounded) {
-            this.verticalVelocity = this.jumpForce;
+            this.verticalVelocity = this.getJumpForce();
             this.isGrounded = false;
             if (this.onJump) this.onJump();
         }
@@ -86,24 +90,21 @@ export class Player {
         if (this.keys['KeyA'] || this.keys['ArrowLeft']) force.x -= 1;
         if (this.keys['KeyD'] || this.keys['ArrowRight']) force.x += 1;
 
+        const maxSpeedFactor = this.size < 15 ? Math.pow(this.size, 0.6) : Math.pow(this.size, 0.75);
+        const currentMaxSpeed = this.maxSpeed * maxSpeedFactor;
+
         if (force.lengthSq() > 0) {
             force.normalize();
             force.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraAngle);
-            let scaleFactor: number;
-            if (this.size > 100) {
-                scaleFactor = Math.max(1, Math.pow(this.size, 0.08));
-            } else {
-                scaleFactor = Math.max(1, Math.pow(this.size, 0.15));
-            }
+            const scaleFactor = this.size < 15
+                ? Math.max(1, Math.pow(this.size, 0.15))
+                : Math.max(1, Math.pow(this.size, 0.05));
             const acceleration = (this.speed / scaleFactor) * deltaTime;
             this.velocity.add(force.multiplyScalar(acceleration));
         }
 
-        let currentMaxSpeed: number;
-        if (this.size > 100) {
-            currentMaxSpeed = this.maxSpeed * Math.pow(this.size, 0.75);
-        } else {
-            currentMaxSpeed = this.maxSpeed * Math.pow(this.size, 0.6);
+        if (this.velocity.length() > currentMaxSpeed) {
+            this.velocity.normalize().multiplyScalar(currentMaxSpeed);
         }
         if (this.velocity.length() > currentMaxSpeed) {
             this.velocity.normalize().multiplyScalar(currentMaxSpeed);

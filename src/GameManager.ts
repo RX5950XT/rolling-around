@@ -197,12 +197,10 @@ export class GameManager {
             const cameraDist = this.engine.cameraDistance * this.player.size;
             this.weather.update(delta, cameraDist);
 
-            let currentMaxSpeed: number;
-            if (this.player.size > 100) {
-                currentMaxSpeed = this.player.maxSpeed * Math.pow(this.player.size, 0.75);
-            } else {
-                currentMaxSpeed = this.player.maxSpeed * Math.pow(this.player.size, 0.6);
-            }
+            const maxSpeedFactor = this.player.size < 15
+                ? Math.pow(this.player.size, 0.6)
+                : Math.pow(this.player.size, 0.75);
+            const currentMaxSpeed = this.player.maxSpeed * maxSpeedFactor;
             this.audio.updateRollingSound(this.player.velocity.length(), currentMaxSpeed, this.player.size);
             const isNight = this.weather.timeOfDay < 6 || this.weather.timeOfDay > 18;
             this.audio.updateAmbientSound(this.weather.isRaining, isNight);
