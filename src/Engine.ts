@@ -82,6 +82,17 @@ export class Engine {
             this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
+        // Click canvas to re-enter pointer lock when lost
+        this.renderer.domElement.addEventListener('click', () => {
+            if (document.pointerLockElement !== this.renderer.domElement) {
+                this.requestPointerLock();
+            }
+        });
+
+        document.addEventListener('pointerlockerror', () => {
+            console.warn('Pointer lock error - user gesture may be required');
+        });
+
         this.raycaster = new THREE.Raycaster();
     }
 

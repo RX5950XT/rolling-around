@@ -52,6 +52,7 @@ export class Player {
         window.addEventListener('keydown', (e) => {
             this.keys[e.code] = true;
             if (e.code === 'Space') {
+                e.preventDefault();
                 this.attemptJump();
             }
         });
