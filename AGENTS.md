@@ -50,7 +50,8 @@
 ### 碰撞檢測
 - `checkCollisions()` 同時清理 `collidables` 和 `movingEntities`
 - 每幀最多處理 5 個碰撞物件，統一計算平均推開方向
-- 彈開分離距離上限為 `playerRadius * 1.5`，彈跳力度上限為 8
+- 彈開分離距離為 `maxSeparation + 0.5`，確保完全脫離碰撞物體
+- 彈跳力度上限為 8
 - 不再使用 `break`，避免漏檢導致反覆彈跳
 - **位置快取**: 每個 collidable 在 `userData.cachedPos` 預存 `{x,y,z}`，避免每幀 `getWorldPosition()`
 - **距離預過濾**: 使用 `quickRejectDist` 先用平方距離排除遠處物件，再對近處物件做精確計算

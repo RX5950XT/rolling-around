@@ -58,7 +58,7 @@ Rolling Around 是一個基於 Three.js 的 3D 滾球收集遊戲，使用 TypeS
 
 ### WorldManager.ts
 無限世界管理，負責：
-- 200x200 區塊動態載入/卸載（renderDistance = 2）
+- 200x200 區塊動態載入/卸載（renderDistance 動態 2→5）
 - 地形高度計算（sin/cos 組合雜訊）
 - 物件密度控制：動態根據球大小調整（tiny 4x→0x, small 2.5x→0x, medium 0.5x→2x, large 0.5x→5x）
 - 150m+ 時 tiny/small 完全消失，節省效能投資於更多大型結構
@@ -131,7 +131,7 @@ GameManager.animate()
 - 音效需使用者互動後才能初始化（瀏覽器限制）
 - 同時存在約 25 個區塊 × ~150 物件 = ~3,750 個 mesh，低階裝置可能卡頓
 - 碰撞檢測為簡單距離檢測，非精確物理
-- 彈開分離距離上限為 `playerRadius * 1.5`，避免被大物體彈飛過遠
+- 彈開分離距離為 `maxSeparation + 0.5`，確保完全脫離碰撞物體
 - 每幀最多處理 5 個碰撞物件，統一推開方向
 - 碰撞位置快取（cachedPos）避免每幀 getWorldPosition
 - 距離預過濾（quickRejectDist）跳過不可能碰撞的物件
@@ -157,7 +157,7 @@ GameManager.animate()
 
 ## 修改注意事項
 
-- **物理系統**：所有位移計算必須乘 `deltaTime`
+- **物理系統**：所有位移計算必須乘 `deltaTime`；使用直接分量加法而非 `.add().multiplyScalar()` 避免臨時物件分配
 - **摩擦係數**：使用 `Math.pow(friction, deltaTime)` 確保幀率獨立
 - **碰撞清單**：吃掉物件時必須同時從 `collidables` 和 `movingEntities` 移除
 - **區塊卸載**：使用 `userData.isGround` 標記識別地面，勿依賴 `children[0]`
