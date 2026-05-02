@@ -150,13 +150,18 @@ export class GameManager {
         }
 
         if (collisionCount > 0) {
-            pushDir.normalize();
+            if (pushDir.lengthSq() > 0.001) {
+                pushDir.normalize();
+            } else {
+                pushDir.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+            }
 
-            const cappedSeparation = Math.min(maxSeparation, playerRadius * 1.5);
-            this.player.mesh.position.add(pushDir.clone().multiplyScalar(cappedSeparation));
+            // Ensure complete separation from all colliding objects
+            const separation = maxSeparation + 0.5;
+            this.player.mesh.position.add(pushDir.clone().multiplyScalar(separation));
 
             const bounceForce = Math.min(
-                Math.max(this.player.velocity.length() * 0.5, 2),
+                Math.max(this.player.velocity.length() * 0.5, 4),
                 8
             );
             this.player.velocity.copy(pushDir.multiplyScalar(bounceForce));

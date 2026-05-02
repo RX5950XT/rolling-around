@@ -109,10 +109,10 @@ export class WeatherSystem {
 
             if (this.isRaining) {
                 this.scene.add(this.rainParticles!);
-                this.player.weatherFrictionModifier = 6.5;
+                this.player.weatherFrictionModifier = 0.6;
             } else {
                 this.scene.remove(this.rainParticles!);
-                this.player.weatherFrictionModifier = 0.15;
+                this.player.weatherFrictionModifier = 1.0;
             }
         }
 
