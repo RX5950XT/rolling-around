@@ -13,6 +13,7 @@ export class GameManager {
     public audio: AudioManager;
 
     public isPaused: boolean = true;
+    private disposed: boolean = false;
     private clock: THREE.Clock;
 
     private startScreen: HTMLElement;
@@ -44,7 +45,13 @@ export class GameManager {
     private initControls() {
         window.addEventListener('keydown', (e) => {
             if (e.code === 'Escape') {
-                this.togglePause();
+                this.pauseGame();
+            }
+        });
+
+        this.engine.onPointerLockChange((isLocked) => {
+            if (!isLocked && !this.isPaused && this.startScreen.classList.contains('hidden')) {
+                this.pauseGame();
             }
         });
     }
@@ -57,20 +64,35 @@ export class GameManager {
         this.engine.requestPointerLock();
     }
 
+    public pauseGame() {
+        if (!this.startScreen.classList.contains('hidden')) return;
+        if (this.isPaused) return;
+
+        this.isPaused = true;
+        this.pauseScreen.classList.remove('hidden');
+        this.clock.stop();
+        this.audio.suspend();
+        this.engine.exitPointerLock();
+    }
+
+    public resumeGame() {
+        if (!this.startScreen.classList.contains('hidden')) return;
+        if (!this.isPaused) return;
+
+        this.isPaused = false;
+        this.pauseScreen.classList.add('hidden');
+        this.clock.start();
+        this.audio.resume();
+        this.engine.requestPointerLock();
+    }
+
     public togglePause() {
         if (!this.startScreen.classList.contains('hidden')) return;
 
-        this.isPaused = !this.isPaused;
-
         if (this.isPaused) {
-            this.pauseScreen.classList.remove('hidden');
-            this.clock.stop();
-            this.audio.updateRollingSound(0, 1, 1);
-            this.engine.exitPointerLock();
+            this.resumeGame();
         } else {
-            this.pauseScreen.classList.add('hidden');
-            this.clock.start();
-            this.engine.requestPointerLock();
+            this.pauseGame();
         }
     }
 
@@ -84,7 +106,14 @@ export class GameManager {
         const playerVol = this.player.volume;
         const toRemove: number[] = [];
 
+        let pushDir = new THREE.Vector3();
+        let maxSeparation = 0;
+        let collisionCount = 0;
+        const MAX_COLLISIONS_PER_FRAME = 5;
+
         for (let i = 0; i < this.world.collidables.length; i++) {
+            if (collisionCount >= MAX_COLLISIONS_PER_FRAME) break;
+
             const obj = this.world.collidables[i];
             const objPos = new THREE.Vector3();
             obj.getWorldPosition(objPos);
@@ -100,12 +129,37 @@ export class GameManager {
                     this.audio.playPopSound(this.player.size);
                     toRemove.push(i);
                 } else {
-                    const bounceDir = new THREE.Vector3().subVectors(playerPos, objPos).normalize();
-                    const bounceForce = this.player.velocity.length() * 0.5 + 2;
-                    this.player.velocity.copy(bounceDir.multiplyScalar(bounceForce));
-                    break;
+                    const dir = new THREE.Vector3().subVectors(playerPos, objPos);
+                    dir.y = 0;
+                    const dist = Math.sqrt(distSq);
+                    if (dist < 0.001) {
+                        dir.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+                    } else {
+                        dir.normalize();
+                    }
+
+                    pushDir.add(dir);
+
+                    const separation = (playerRadius + objRadius) - dist + 0.2;
+                    if (separation > maxSeparation) {
+                        maxSeparation = separation;
+                    }
+                    collisionCount++;
                 }
             }
+        }
+
+        if (collisionCount > 0) {
+            pushDir.normalize();
+
+            const cappedSeparation = Math.min(maxSeparation, playerRadius * 1.5);
+            this.player.mesh.position.add(pushDir.clone().multiplyScalar(cappedSeparation));
+
+            const bounceForce = Math.min(
+                Math.max(this.player.velocity.length() * 0.5, 2),
+                8
+            );
+            this.player.velocity.copy(pushDir.multiplyScalar(bounceForce));
         }
 
         for (let i = toRemove.length - 1; i >= 0; i--) {
@@ -118,7 +172,13 @@ export class GameManager {
         }
     }
 
+    public dispose() {
+        this.disposed = true;
+        this.engine.exitPointerLock();
+    }
+
     private animate = () => {
+        if (this.disposed) return;
         requestAnimationFrame(this.animate);
 
         if (!this.isPaused) {

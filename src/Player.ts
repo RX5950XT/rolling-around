@@ -8,9 +8,10 @@ export class Player {
     public volume: number;
 
     public velocity: THREE.Vector3 = new THREE.Vector3();
-    public speed: number = 60;
-    public maxSpeed: number = 100;
-    public friction: number = 0.02;
+    public speed: number = 120;
+    public maxSpeed: number = 60;
+    public friction: number = 0.15;
+    public weatherFrictionModifier: number = 1.0;
 
     private baseGrowthRate: number = 0.05;
     private MAX_SIZE: number = 500.0;
@@ -29,6 +30,8 @@ export class Player {
 
         this.mesh.add(this.ballMesh);
         this.mesh.position.y = 1.0;
+        this.mesh.userData.isPlayer = true;
+        this.mesh.traverse(child => { child.userData.isPlayer = true; });
         scene.add(this.mesh);
 
         this.volume = (4 / 3) * Math.PI * Math.pow(this.size, 3);
@@ -38,6 +41,11 @@ export class Player {
     private initControls() {
         window.addEventListener('keydown', (e) => { this.keys[e.code] = true; });
         window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
+        window.addEventListener('blur', () => {
+            for (const key in this.keys) {
+                this.keys[key] = false;
+            }
+        });
     }
 
     public update(deltaTime: number, cameraAngle: number, getTerrainHeight: (x: number, z: number) => number) {
@@ -66,8 +74,13 @@ export class Player {
             this.velocity.normalize().multiplyScalar(currentMaxSpeed);
         }
 
-        this.velocity.clampScalar(-currentMaxSpeed * 2, currentMaxSpeed * 2);
-        this.velocity.multiplyScalar(Math.pow(this.friction, deltaTime));
+        const effectiveFriction = Math.min(this.friction * this.weatherFrictionModifier, 0.99);
+        this.velocity.multiplyScalar(Math.pow(effectiveFriction, deltaTime));
+
+        if (this.velocity.lengthSq() < 0.25) {
+            this.velocity.set(0, 0, 0);
+        }
+
         this.mesh.position.add(this.velocity.clone().multiplyScalar(deltaTime));
 
         let px = this.mesh.position.x;
@@ -106,6 +119,7 @@ export class Player {
         object.getWorldQuaternion(worldQuat);
         object.getWorldScale(worldScale);
         this.mesh.attach(object);
+        object.traverse(child => { child.userData.isPlayer = true; });
         const objVol = (object as THREE.Object3D).userData.volume || 1;
         this.grow(objVol);
     }

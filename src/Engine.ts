@@ -10,6 +10,7 @@ export class Engine {
     public cameraDistance: number = 12;
     public cameraHeight: number = 10;
     public cameraAngle: number = 0;
+    public cameraPitch: number = 0.4; // default ~23° above horizon
 
     private targetSize: number = 1.0;
     private currentSize: number = 1.0;
@@ -21,6 +22,11 @@ export class Engine {
 
     constructor() {
         this.appContainer = document.getElementById('app') as HTMLElement;
+
+        // Clean up old canvases from HMR reloads
+        while (this.appContainer.firstChild) {
+            this.appContainer.removeChild(this.appContainer.firstChild);
+        }
 
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x87CEEB);
@@ -36,7 +42,7 @@ export class Engine {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.shadowMap.type = (THREE as any).PCFSoftShadowMap ?? 'pcf-soft';
         this.appContainer.appendChild(this.renderer.domElement);
 
         this.ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -61,6 +67,9 @@ export class Engine {
         document.addEventListener('mousemove', (e) => {
             if (document.pointerLockElement === this.renderer.domElement) {
                 this.cameraAngle -= e.movementX * 0.002;
+                this.cameraPitch += e.movementY * 0.003;
+                // Clamp pitch: avoid flipping and ground clipping
+                this.cameraPitch = Math.max(0.05, Math.min(this.cameraPitch, Math.PI / 2.2));
             }
         });
 
@@ -74,13 +83,23 @@ export class Engine {
     }
 
     public requestPointerLock() {
-        this.renderer.domElement.requestPointerLock();
+        if (document.pointerLockElement !== this.renderer.domElement) {
+            this.renderer.domElement.requestPointerLock().catch((err: unknown) => {
+                console.warn('Pointer Lock request failed:', err);
+            });
+        }
     }
 
     public exitPointerLock() {
         if (document.pointerLockElement === this.renderer.domElement) {
             document.exitPointerLock();
         }
+    }
+
+    public onPointerLockChange(callback: (isLocked: boolean) => void) {
+        document.addEventListener('pointerlockchange', () => {
+            callback(document.pointerLockElement === this.renderer.domElement);
+        });
     }
 
     public updateCamera(
@@ -95,14 +114,16 @@ export class Engine {
         this.currentSize += (this.targetSize - this.currentSize) * Math.min(deltaTime * 3, 1);
 
         const dynamicDistance = Math.max(this.cameraDistance * this.currentSize, this.currentSize * 2.5);
-        const dynamicHeight = this.cameraHeight * this.currentSize;
 
-        const offsetX = Math.sin(this.cameraAngle) * dynamicDistance;
-        const offsetZ = Math.cos(this.cameraAngle) * dynamicDistance;
+        const horizontalDist = dynamicDistance * Math.cos(this.cameraPitch);
+        const verticalDist = dynamicDistance * Math.sin(this.cameraPitch);
+
+        const offsetX = Math.sin(this.cameraAngle) * horizontalDist;
+        const offsetZ = Math.cos(this.cameraAngle) * horizontalDist;
 
         let camX = playerPosition.x + offsetX;
         let camZ = playerPosition.z + offsetZ;
-        let camY = playerPosition.y + dynamicHeight;
+        let camY = playerPosition.y + verticalDist;
 
         // Camera anti-clipping: raycast from player to camera
         const playerToCam = new THREE.Vector3(camX, camY, camZ).sub(playerPosition);
@@ -114,8 +135,17 @@ export class Engine {
         this.raycaster.far = distanceToCam;
 
         const intersects = this.raycaster.intersectObjects(this.scene.children, true);
-        if (intersects.length > 0) {
-            const hit = intersects[0];
+        const hit = intersects.find(i => {
+            const obj = i.object as THREE.Object3D;
+            if (obj.userData.isGround) return false;
+            let p: THREE.Object3D | null = obj;
+            while (p) {
+                if (p.userData.isPlayer) return false;
+                p = p.parent;
+            }
+            return true;
+        });
+        if (hit) {
             const safeDist = Math.max(hit.distance - playerSize * 0.5, playerSize * 2);
             camX = playerPosition.x + playerToCam.x * safeDist;
             camZ = playerPosition.z + playerToCam.z * safeDist;

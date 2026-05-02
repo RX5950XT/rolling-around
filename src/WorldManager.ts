@@ -78,17 +78,17 @@ export class WorldManager {
         const planeGeo = new THREE.PlaneGeometry(this.chunkSize, this.chunkSize, 32, 32);
         const posAttr = planeGeo.attributes.position;
         for (let i = 0; i < posAttr.count; i++) {
-            const vx = posAttr.getX(i) + cx * this.chunkSize;
-            const vy = posAttr.getY(i) + cz * this.chunkSize;
-            posAttr.setZ(i, this.getTerrainHeight(vx, vy));
+            const worldX = posAttr.getX(i) + cx * this.chunkSize;
+            const worldZ = -posAttr.getY(i) + cz * this.chunkSize;
+            posAttr.setZ(i, this.getTerrainHeight(worldX, worldZ));
         }
         planeGeo.computeVertexNormals();
 
         const plane = new THREE.Mesh(planeGeo, this.groundMaterial);
         plane.rotation.x = -Math.PI / 2;
 
-        const chunkWorldX = cx * this.chunkSize + this.chunkSize / 2;
-        const chunkWorldZ = cz * this.chunkSize + this.chunkSize / 2;
+        const chunkWorldX = cx * this.chunkSize;
+        const chunkWorldZ = cz * this.chunkSize;
         plane.position.set(chunkWorldX, 0, chunkWorldZ);
         plane.receiveShadow = true;
         (plane as THREE.Object3D).userData.isGround = true;
