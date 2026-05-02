@@ -199,9 +199,9 @@ export class GameManager {
 
             const baseMaxSpeed = this.player.maxSpeed * Math.pow(this.player.size, 0.95);
             let multiplier = 1.0;
-            if (this.player.size >= 200) multiplier = 3.0;
-            else if (this.player.size >= 100) multiplier = 2.0;
-            else if (this.player.size >= 50) multiplier = 1.5;
+            if (this.player.size >= 200) multiplier = 30.0;
+            else if (this.player.size >= 100) multiplier = 10.0;
+            else if (this.player.size >= 50) multiplier = 5.0;
             const currentMaxSpeed = baseMaxSpeed * multiplier;
             this.audio.updateRollingSound(this.player.velocity.length(), currentMaxSpeed, this.player.size);
             const isNight = this.weather.timeOfDay < 6 || this.weather.timeOfDay > 18;

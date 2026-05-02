@@ -96,12 +96,12 @@ export class Player {
         const scaleFactor = Math.max(1, Math.pow(this.size, 0.01));
         const acceleration = (this.speed / scaleFactor) * deltaTime;
 
-        // Max speed: base growth + flat multipliers for huge balls
+        // Max speed: base growth + extreme flat multipliers for huge balls
         const baseMaxSpeed = this.maxSpeed * Math.pow(this.size, 0.95);
         let multiplier = 1.0;
-        if (this.size >= 200) multiplier = 3.0;
-        else if (this.size >= 100) multiplier = 2.0;
-        else if (this.size >= 50) multiplier = 1.5;
+        if (this.size >= 200) multiplier = 30.0;
+        else if (this.size >= 100) multiplier = 10.0;
+        else if (this.size >= 50) multiplier = 5.0;
         const currentMaxSpeed = baseMaxSpeed * multiplier;
 
         if (force.lengthSq() > 0) {
