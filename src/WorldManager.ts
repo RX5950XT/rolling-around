@@ -8,7 +8,6 @@ export class WorldManager {
 
     private chunkSize: number = 200;
     private activeChunks: Map<string, THREE.Group> = new Map();
-    private renderDistance: number = 2;
 
     public collidables: (THREE.Mesh | THREE.Group)[] = [];
     public movingEntities: THREE.Object3D[] = [];
@@ -28,17 +27,20 @@ export class WorldManager {
         const currentChunkX = Math.floor(playerPos.x / this.chunkSize);
         const currentChunkZ = Math.floor(playerPos.z / this.chunkSize);
 
+        const targetRenderDist = this.getRenderDistance();
         const neededChunks = new Set<string>();
 
-        for (let x = -this.renderDistance; x <= this.renderDistance; x++) {
-            for (let z = -this.renderDistance; z <= this.renderDistance; z++) {
+        for (let x = -targetRenderDist; x <= targetRenderDist; x++) {
+            for (let z = -targetRenderDist; z <= targetRenderDist; z++) {
                 const cx = currentChunkX + x;
                 const cz = currentChunkZ + z;
                 const key = `${cx},${cz}`;
                 neededChunks.add(key);
 
                 if (!this.activeChunks.has(key)) {
-                    this.generateChunk(cx, cz, key);
+                    const dist = Math.max(Math.abs(x), Math.abs(z));
+                    const isNear = dist <= 1;
+                    this.generateChunk(cx, cz, key, isNear);
                 }
             }
         }
@@ -71,11 +73,20 @@ export class WorldManager {
         return Math.sin(worldX * 0.05) * Math.cos(worldZ * 0.05) * 3 + Math.sin(worldX * 0.02 + worldZ * 0.01) * 5;
     }
 
-    private generateChunk(cx: number, cz: number, key: string) {
+    private getRenderDistance(): number {
+        const s = this.player.size;
+        if (s < 30) return 2;
+        if (s < 80) return 3;
+        if (s < 150) return 4;
+        return 5;
+    }
+
+    private generateChunk(cx: number, cz: number, key: string, withObjects: boolean = true) {
         const chunkGroup = new THREE.Group();
 
-        // Exact chunkSize to eliminate overlap between adjacent chunks
-        const planeGeo = new THREE.PlaneGeometry(this.chunkSize, this.chunkSize, 32, 32);
+        // Terrain LOD: lower resolution for distant chunks
+        const seg = withObjects ? 32 : 16;
+        const planeGeo = new THREE.PlaneGeometry(this.chunkSize, this.chunkSize, seg, seg);
         const posAttr = planeGeo.attributes.position;
         for (let i = 0; i < posAttr.count; i++) {
             const worldX = posAttr.getX(i) + cx * this.chunkSize;
@@ -94,11 +105,13 @@ export class WorldManager {
         (plane as THREE.Object3D).userData.isGround = true;
         chunkGroup.add(plane);
 
-        // Reduced density for performance
-        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'tiny', 30, 0.3, 1.5);
-        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'small', 15, 0.8, 3.0);
-        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'medium', 6, 2.0, 10.0);
-        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'large', 2, 10.0, 25.0);
+        if (withObjects) {
+            // Further reduced density for smooth performance
+            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'tiny', 12, 0.3, 1.5);
+            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'small', 6, 0.8, 3.0);
+            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'medium', 2, 2.0, 10.0);
+            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'large', 1, 10.0, 25.0);
+        }
 
         this.scene.add(chunkGroup);
         this.activeChunks.set(key, chunkGroup);

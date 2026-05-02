@@ -113,6 +113,20 @@ export class Engine {
         this.targetSize = playerSize;
         this.currentSize += (this.targetSize - this.currentSize) * Math.min(deltaTime * 3, 1);
 
+        // Dynamic far plane: ensure large players can see the world
+        const farPlane = Math.max(2000, this.currentSize * 25);
+        if (this.camera.far !== farPlane) {
+            this.camera.far = farPlane;
+            this.camera.updateProjectionMatrix();
+        }
+
+        // Dynamic shadow range for large players
+        const shadowFar = Math.max(800, this.currentSize * 12);
+        if (this.dirLight.shadow.camera.far !== shadowFar) {
+            this.dirLight.shadow.camera.far = shadowFar;
+            this.dirLight.shadow.camera.updateProjectionMatrix();
+        }
+
         const dynamicDistance = Math.max(this.cameraDistance * this.currentSize, this.currentSize * 2.5);
 
         const horizontalDist = dynamicDistance * Math.cos(this.cameraPitch);

@@ -14,7 +14,7 @@ export class WeatherSystem {
     public isRaining: boolean = false;
     private rainParticles?: THREE.Points;
     private rainGeo?: THREE.BufferGeometry;
-    private rainCount: number = 2000;
+    private rainCount: number = 500;
 
     private weatherTimer: number = 0;
 
@@ -69,6 +69,9 @@ export class WeatherSystem {
 
         const isNight = this.timeOfDay < 6 || this.timeOfDay > 18;
 
+        // Scale fog visibility with player size so large players don't see void
+        const sizeFactor = 1 / (1 + this.player.size * 0.005);
+
         if (isNight) {
             this.ambientLight.intensity = 0.2;
             this.dirLight.intensity = 0.1;
@@ -76,7 +79,7 @@ export class WeatherSystem {
 
             if (this.scene.fog instanceof THREE.FogExp2) {
                 this.scene.fog.color.setHex(0x0a0a1a);
-                this.scene.fog.density = 0.012 / (cameraDistance * 0.1 || 1);
+                this.scene.fog.density = (0.012 * sizeFactor) / (cameraDistance * 0.1 || 1);
             }
         } else {
             const intensity = Math.sin(timeRad);
@@ -92,7 +95,7 @@ export class WeatherSystem {
 
             if (this.scene.fog instanceof THREE.FogExp2) {
                 this.scene.fog.color.copy(skyColor);
-                this.scene.fog.density = 0.005 / (cameraDistance * 0.1 || 1);
+                this.scene.fog.density = (0.005 * sizeFactor) / (cameraDistance * 0.1 || 1);
             }
         }
     }

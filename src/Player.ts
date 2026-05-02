@@ -65,7 +65,8 @@ export class Player {
         if (force.lengthSq() > 0) {
             force.normalize();
             force.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraAngle);
-            const acceleration = (this.speed / Math.sqrt(this.size)) * deltaTime;
+            const scaleFactor = Math.max(1, Math.pow(this.size, 0.3));
+            const acceleration = (this.speed / scaleFactor) * deltaTime;
             this.velocity.add(force.multiplyScalar(acceleration));
         }
 
