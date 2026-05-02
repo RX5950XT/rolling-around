@@ -88,7 +88,8 @@ export class WorldManager {
         const s = this.player.size;
         if (s < 30) return 2;
         if (s < 80) return 3;
-        return 3; // Cap at 3 for performance - huge ball doesn't need more
+        if (s < 150) return 4;
+        return 5;
     }
 
     private getSpawnCount(baseCount: number, category: 'tiny' | 'small' | 'medium' | 'large'): number {
@@ -102,7 +103,7 @@ export class WorldManager {
                 else if (s < 30) multiplier = 0.8;
                 else if (s < 80) multiplier = 0.4;
                 else if (s < 150) multiplier = 0.15;
-                else multiplier = 0.05; // 200m+: barely any tiny objects
+                else multiplier = 0.0; // 150m+: no tiny objects at all
                 break;
             case 'small':
                 if (s < 2) multiplier = 2.5;
@@ -111,7 +112,7 @@ export class WorldManager {
                 else if (s < 30) multiplier = 1.0;
                 else if (s < 80) multiplier = 0.6;
                 else if (s < 150) multiplier = 0.3;
-                else multiplier = 0.1;
+                else multiplier = 0.0; // 150m+: no small objects
                 break;
             case 'medium':
                 if (s < 2) multiplier = 0.5;
@@ -120,7 +121,7 @@ export class WorldManager {
                 else if (s < 30) multiplier = 2.0;
                 else if (s < 80) multiplier = 3.0;
                 else if (s < 150) multiplier = 4.0;
-                else multiplier = 3.0; // Slightly reduce at 200m+ for performance
+                else multiplier = 2.0; // 150m+: fewer medium
                 break;
             case 'large':
                 if (s < 2) multiplier = 0.5;
@@ -129,7 +130,7 @@ export class WorldManager {
                 else if (s < 30) multiplier = 1.5;
                 else if (s < 80) multiplier = 2.5;
                 else if (s < 150) multiplier = 3.5;
-                else multiplier = 3.0;
+                else multiplier = 5.0; // 150m+: massive structures dominate
                 break;
         }
         return Math.floor(baseCount * multiplier);
@@ -173,7 +174,7 @@ export class WorldManager {
         this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'tiny', this.getSpawnCount(35, 'tiny'), 0.3, 1.5);
         this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'small', this.getSpawnCount(18, 'small'), 0.8, 3.0);
         this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'medium', this.getSpawnCount(7, 'medium'), 2.0, 10.0);
-        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'large', this.getSpawnCount(2, 'large'), 10.0, 25.0);
+            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'large', this.getSpawnCount(2, 'large'), 10.0, this.player.size > 150 ? 60.0 : 25.0);
     }
 
     private populateCategory(

@@ -77,7 +77,8 @@ export class Player {
     }
 
     public update(deltaTime: number, cameraAngle: number, getTerrainHeight: (x: number, z: number) => number) {
-        if (isNaN(deltaTime) || !isFinite(deltaTime) || deltaTime > 0.1) deltaTime = 0.016;
+        if (isNaN(deltaTime) || !isFinite(deltaTime)) deltaTime = 0.016;
+        if (deltaTime > 0.2) deltaTime = 0.2; // allow slow machines to catch up
 
         if (this.size < this.MAX_SIZE) {
             const growthAmount = this.baseGrowthRate * this.size * deltaTime;
@@ -95,8 +96,8 @@ export class Player {
         const scaleFactor = Math.max(1, Math.pow(this.size, 0.01));
         const acceleration = (this.speed / scaleFactor) * deltaTime;
 
-        // Max speed grows strongly: size^0.88 is close to linear
-        const currentMaxSpeed = this.maxSpeed * Math.pow(this.size, 0.88);
+        // Max speed: aggressive linear growth for big balls
+        const currentMaxSpeed = this.maxSpeed * Math.pow(this.size, 0.95);
 
         if (force.lengthSq() > 0) {
             force.normalize();

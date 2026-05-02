@@ -127,9 +127,9 @@ export class Engine {
         this.targetSize = playerSize;
         this.currentSize += (this.targetSize - this.currentSize) * Math.min(deltaTime * 3, 1);
 
-        // Dynamic far plane: only update when change is significant to avoid z-flicker
-        const farPlane = Math.max(2000, this.currentSize * 25);
-        if (Math.abs(this.camera.far - farPlane) > 100) {
+        // Dynamic far plane: must outrun camera distance for big balls
+        const farPlane = Math.max(4000, this.currentSize * 60);
+        if (Math.abs(this.camera.far - farPlane) > 200) {
             this.camera.far = farPlane;
             this.camera.updateProjectionMatrix();
         }
