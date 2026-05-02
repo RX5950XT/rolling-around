@@ -88,8 +88,7 @@ export class WorldManager {
         const s = this.player.size;
         if (s < 30) return 2;
         if (s < 80) return 3;
-        if (s < 150) return 4;
-        return 5;
+        return 3; // Cap at 3 for performance - huge ball doesn't need more
     }
 
     private getSpawnCount(baseCount: number, category: 'tiny' | 'small' | 'medium' | 'large'): number {
@@ -102,7 +101,8 @@ export class WorldManager {
                 else if (s < 10) multiplier = 1.5;
                 else if (s < 30) multiplier = 0.8;
                 else if (s < 80) multiplier = 0.4;
-                else multiplier = 0.15;
+                else if (s < 150) multiplier = 0.15;
+                else multiplier = 0.05; // 200m+: barely any tiny objects
                 break;
             case 'small':
                 if (s < 2) multiplier = 2.5;
@@ -110,7 +110,8 @@ export class WorldManager {
                 else if (s < 10) multiplier = 1.5;
                 else if (s < 30) multiplier = 1.0;
                 else if (s < 80) multiplier = 0.6;
-                else multiplier = 0.3;
+                else if (s < 150) multiplier = 0.3;
+                else multiplier = 0.1;
                 break;
             case 'medium':
                 if (s < 2) multiplier = 0.5;
@@ -118,7 +119,8 @@ export class WorldManager {
                 else if (s < 10) multiplier = 1.2;
                 else if (s < 30) multiplier = 2.0;
                 else if (s < 80) multiplier = 3.0;
-                else multiplier = 4.0;
+                else if (s < 150) multiplier = 4.0;
+                else multiplier = 3.0; // Slightly reduce at 200m+ for performance
                 break;
             case 'large':
                 if (s < 2) multiplier = 0.5;
@@ -126,7 +128,8 @@ export class WorldManager {
                 else if (s < 10) multiplier = 1.0;
                 else if (s < 30) multiplier = 1.5;
                 else if (s < 80) multiplier = 2.5;
-                else multiplier = 3.5;
+                else if (s < 150) multiplier = 3.5;
+                else multiplier = 3.0;
                 break;
         }
         return Math.floor(baseCount * multiplier);

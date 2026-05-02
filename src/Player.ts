@@ -89,12 +89,22 @@ export class Player {
         if (force.lengthSq() > 0) {
             force.normalize();
             force.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraAngle);
-            const scaleFactor = Math.max(1, Math.pow(this.size, 0.15));
+            let scaleFactor: number;
+            if (this.size > 100) {
+                scaleFactor = Math.max(1, Math.pow(this.size, 0.08));
+            } else {
+                scaleFactor = Math.max(1, Math.pow(this.size, 0.15));
+            }
             const acceleration = (this.speed / scaleFactor) * deltaTime;
             this.velocity.add(force.multiplyScalar(acceleration));
         }
 
-        const currentMaxSpeed = this.maxSpeed * Math.pow(this.size, 0.6);
+        let currentMaxSpeed: number;
+        if (this.size > 100) {
+            currentMaxSpeed = this.maxSpeed * Math.pow(this.size, 0.75);
+        } else {
+            currentMaxSpeed = this.maxSpeed * Math.pow(this.size, 0.6);
+        }
         if (this.velocity.length() > currentMaxSpeed) {
             this.velocity.normalize().multiplyScalar(currentMaxSpeed);
         }
@@ -149,6 +159,16 @@ export class Player {
     }
 
     public attachObject(object: THREE.Mesh | THREE.Group) {
+        const objVol = (object as THREE.Object3D).userData.volume || 1;
+        const objSize = Math.pow(objVol, 1 / 3);
+
+        // Performance optimization: when ball is huge, tiny objects are invisible.
+        // Don't attach them - just destroy and add volume.
+        if (this.size > 50 && objSize < this.size * 0.15) {
+            this.grow(objVol);
+            return;
+        }
+
         const worldPos = new THREE.Vector3();
         const worldQuat = new THREE.Quaternion();
         const worldScale = new THREE.Vector3();
@@ -157,7 +177,6 @@ export class Player {
         object.getWorldScale(worldScale);
         this.mesh.attach(object);
         object.traverse(child => { child.userData.isPlayer = true; });
-        const objVol = (object as THREE.Object3D).userData.volume || 1;
         this.grow(objVol);
     }
 }
