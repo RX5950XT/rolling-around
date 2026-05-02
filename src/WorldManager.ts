@@ -8,6 +8,7 @@ export class WorldManager {
 
     private chunkSize: number = 200;
     private activeChunks: Map<string, THREE.Group> = new Map();
+    private chunksWithObjects: Set<string> = new Set();
 
     public collidables: (THREE.Mesh | THREE.Group)[] = [];
     public movingEntities: THREE.Object3D[] = [];
@@ -41,6 +42,16 @@ export class WorldManager {
                     const dist = Math.max(Math.abs(x), Math.abs(z));
                     const isNear = dist <= 1;
                     this.generateChunk(cx, cz, key, isNear);
+                } else if (!this.chunksWithObjects.has(key)) {
+                    // Chunk exists but has no objects yet - populate now if player is near
+                    const dist = Math.max(Math.abs(x), Math.abs(z));
+                    if (dist <= 1) {
+                        const chunk = this.activeChunks.get(key)!;
+                        const chunkWorldX = cx * this.chunkSize;
+                        const chunkWorldZ = cz * this.chunkSize;
+                        this.populateChunkObjects(chunk, chunkWorldX, chunkWorldZ);
+                        this.chunksWithObjects.add(key);
+                    }
                 }
             }
         }
@@ -146,19 +157,20 @@ export class WorldManager {
         chunkGroup.add(plane);
 
         if (withObjects) {
-            // Dynamic spawn counts based on player size
-            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'tiny', this.getSpawnCount(35, 'tiny'), 0.3, 1.5);
-            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'small', this.getSpawnCount(18, 'small'), 0.8, 3.0);
-            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'medium', this.getSpawnCount(7, 'medium'), 2.0, 10.0);
-            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'large', this.getSpawnCount(2, 'large'), 10.0, 25.0);
-        } else {
-            // Distant chunks: only large landmarks so the world doesn't look empty
-            const distantLargeCount = this.player.size < 50 ? 0 : 1;
-            this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'large', distantLargeCount, 15.0, 30.0);
+            this.populateChunkObjects(chunkGroup, chunkWorldX, chunkWorldZ);
+            this.chunksWithObjects.add(key);
         }
 
         this.scene.add(chunkGroup);
         this.activeChunks.set(key, chunkGroup);
+    }
+
+    private populateChunkObjects(chunkGroup: THREE.Group, chunkWorldX: number, chunkWorldZ: number) {
+        // Dynamic spawn counts based on player size
+        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'tiny', this.getSpawnCount(35, 'tiny'), 0.3, 1.5);
+        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'small', this.getSpawnCount(18, 'small'), 0.8, 3.0);
+        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'medium', this.getSpawnCount(7, 'medium'), 2.0, 10.0);
+        this.populateCategory(chunkGroup, chunkWorldX, chunkWorldZ, 'large', this.getSpawnCount(2, 'large'), 10.0, 25.0);
     }
 
     private populateCategory(
@@ -221,5 +233,6 @@ export class WorldManager {
 
         this.scene.remove(chunk);
         this.activeChunks.delete(key);
+        this.chunksWithObjects.delete(key);
     }
 }
