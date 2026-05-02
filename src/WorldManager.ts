@@ -70,6 +70,13 @@ export class WorldManager {
                 const newY = this.getTerrainHeight(newX, newZ) + ((entity as THREE.Object3D).userData.baseYOffset || 0);
                 entity.position.set(newX, newY, newZ);
 
+                // Update cached position for fast collision lookup
+                if (userData.cachedPos) {
+                    userData.cachedPos.x = newX;
+                    userData.cachedPos.y = newY;
+                    userData.cachedPos.z = newZ;
+                }
+
                 const targetRot = Math.atan2(userData.moveDir.x, userData.moveDir.z);
                 entity.rotation.y += (targetRot - entity.rotation.y) * deltaTime * 5;
 
@@ -82,6 +89,16 @@ export class WorldManager {
 
     public getTerrainHeight(worldX: number, worldZ: number): number {
         return Math.sin(worldX * 0.05) * Math.cos(worldZ * 0.05) * 3 + Math.sin(worldX * 0.02 + worldZ * 0.01) * 5;
+    }
+
+    // Fast squared distance check using cached positions (no getWorldPosition)
+    public getCollidableSqrDistance(obj: THREE.Mesh | THREE.Group, playerPos: THREE.Vector3): number {
+        const c = (obj as THREE.Object3D).userData.cachedPos;
+        if (!c) return Infinity;
+        const dx = playerPos.x - c.x;
+        const dy = playerPos.y - c.y;
+        const dz = playerPos.z - c.z;
+        return dx * dx + dy * dy + dz * dz;
     }
 
     private getRenderDistance(): number {
@@ -213,7 +230,11 @@ export class WorldManager {
             const baseYOffset = obj.position.y * scale;
             (obj as THREE.Object3D).userData.baseYOffset = baseYOffset;
 
-            obj.position.set(worldX, terrainHeight + baseYOffset, worldZ);
+            const finalY = terrainHeight + baseYOffset;
+            obj.position.set(worldX, finalY, worldZ);
+
+            // Cache world position for collision detection (avoids expensive getWorldPosition)
+            (obj as THREE.Object3D).userData.cachedPos = { x: worldX, y: finalY, z: worldZ };
 
             chunkGroup.add(obj);
             this.collidables.push(obj);

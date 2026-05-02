@@ -51,11 +51,14 @@
 - 每幀最多處理 5 個碰撞物件，統一計算平均推開方向
 - 彈開分離距離上限為 `playerRadius * 1.5`，彈跳力度上限為 8
 - 不再使用 `break`，避免漏檢導致反覆彈跳
+- **位置快取**: 每個 collidable 在 `userData.cachedPos` 預存 `{x,y,z}`，避免每幀 `getWorldPosition()`
+- **距離預過濾**: 使用 `quickRejectDist` 先用平方距離排除遠處物件，再對近處物件做精確計算
 
 ### 區塊管理
 - `destroyChunk()` 使用 `userData.isGround` 識別地面
-- 區塊大小 200，渲染距離 2，同時存在 25 個區塊
+- 區塊大小 200，渲染距離動態 2→5（依球大小）
 - 調整物件密度時注意低階裝置效能
+- 遠處區塊先只生成地面，玩家靠近時才補充物件（`chunksWithObjects` 追蹤）
 
 ### 天氣系統
 - 透過 `player.weatherFrictionModifier` 影響摩擦，不直接覆蓋 `Player.friction`
@@ -104,3 +107,6 @@
 - 降低 `renderDistance`
 - 減少各類別物件數量
 - 關閉陰影或降低 shadow map 解析度
+- **getWorldPosition() 是頭號效能殺手**: 碰撞檢測務必使用 `cachedPos`
+- **raycaster 每 3 幀執行一次**即可，不需要每幀
+- **大球時銷毀小物件而非 attach**: 避免子 mesh 數量爆炸

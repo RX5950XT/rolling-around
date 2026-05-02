@@ -22,6 +22,12 @@ export class Engine {
     public ambientLight: THREE.AmbientLight;
 
     private raycaster: THREE.Raycaster;
+    private raycastFrameCounter: number = 0;
+    private lastRaycastSafeDist: number = 0;
+
+    // Reusable temp vectors
+    private _camPlayerToCam = new THREE.Vector3();
+    private _camLookTarget = new THREE.Vector3();
 
     constructor() {
         this.appContainer = document.getElementById('app') as HTMLElement;
@@ -156,30 +162,39 @@ export class Engine {
         let camZ = playerPosition.z + offsetZ;
         let camY = playerPosition.y + verticalDist;
 
-        // Camera anti-clipping: raycast from player to camera
-        const playerToCam = new THREE.Vector3(camX, camY, camZ).sub(playerPosition);
+        // Camera anti-clipping: raycast from player to camera (every 3 frames to save CPU)
+        this.raycastFrameCounter++;
+        const playerToCam = this._camPlayerToCam;
+        playerToCam.set(camX - playerPosition.x, camY - playerPosition.y, camZ - playerPosition.z);
         const distanceToCam = playerToCam.length();
         playerToCam.normalize();
 
-        this.raycaster.set(playerPosition, playerToCam);
-        this.raycaster.near = playerSize * 1.5;
-        this.raycaster.far = distanceToCam;
+        if (this.raycastFrameCounter % 3 === 0) {
+            this.raycaster.set(playerPosition, playerToCam);
+            this.raycaster.near = playerSize * 1.5;
+            this.raycaster.far = distanceToCam;
 
-        const intersects = this.raycaster.intersectObjects(this.scene.children, true);
-        const hit = intersects.find(i => {
-            const obj = i.object as THREE.Object3D;
-            if (obj.userData.isGround) return false;
-            let p: THREE.Object3D | null = obj;
-            while (p) {
-                if (p.userData.isPlayer) return false;
-                p = p.parent;
+            const intersects = this.raycaster.intersectObjects(this.scene.children, true);
+            const hit = intersects.find(i => {
+                const obj = i.object as THREE.Object3D;
+                if (obj.userData.isGround) return false;
+                let p: THREE.Object3D | null = obj;
+                while (p) {
+                    if (p.userData.isPlayer) return false;
+                    p = p.parent;
+                }
+                return true;
+            });
+            if (hit) {
+                this.lastRaycastSafeDist = Math.max(hit.distance - playerSize * 0.5, playerSize * 2);
+            } else {
+                this.lastRaycastSafeDist = 0;
             }
-            return true;
-        });
-        if (hit) {
-            const safeDist = Math.max(hit.distance - playerSize * 0.5, playerSize * 2);
+        }
+
+        if (this.lastRaycastSafeDist > 0) {
             // Smoothly pull camera distance toward safe distance
-            this.currentCamDistance += (safeDist - this.currentCamDistance) * Math.min(deltaTime * 8, 1);
+            this.currentCamDistance += (this.lastRaycastSafeDist - this.currentCamDistance) * Math.min(deltaTime * 8, 1);
             const smoothDist = this.currentCamDistance;
             camX = playerPosition.x + playerToCam.x * smoothDist;
             camZ = playerPosition.z + playerToCam.z * smoothDist;
@@ -195,7 +210,8 @@ export class Engine {
 
         this.camera.position.set(camX, camY, camZ);
 
-        const lookTarget = playerPosition.clone().add(new THREE.Vector3(0, this.currentSize * 0.5, 0));
+        const lookTarget = this._camLookTarget;
+        lookTarget.set(playerPosition.x, playerPosition.y + this.currentSize * 0.5, playerPosition.z);
         this.camera.lookAt(lookTarget);
     }
 }

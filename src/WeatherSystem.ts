@@ -18,6 +18,12 @@ export class WeatherSystem {
 
     private weatherTimer: number = 0;
 
+    // Cached colors to avoid per-frame GC
+    private nightColor = new THREE.Color(0x0a0a1a);
+    private sunsetColor = new THREE.Color(0xff8c00);
+    private dayColor = new THREE.Color(0x87CEEB);
+    private skyColor = new THREE.Color();
+
     constructor(scene: THREE.Scene, player: Player, dirLight: THREE.DirectionalLight, ambientLight: THREE.AmbientLight) {
         this.scene = scene;
         this.player = player;
@@ -75,10 +81,10 @@ export class WeatherSystem {
         if (isNight) {
             this.ambientLight.intensity = 0.2;
             this.dirLight.intensity = 0.1;
-            this.scene.background = new THREE.Color(0x0a0a1a);
+            this.scene.background = this.nightColor;
 
             if (this.scene.fog instanceof THREE.FogExp2) {
-                this.scene.fog.color.setHex(0x0a0a1a);
+                this.scene.fog.color.copy(this.nightColor);
                 this.scene.fog.density = (0.012 * sizeFactor) / (cameraDistance * 0.1 || 1);
             }
         } else {
@@ -86,15 +92,11 @@ export class WeatherSystem {
             this.ambientLight.intensity = 0.4 + (intensity * 0.4);
             this.dirLight.intensity = 0.5 + (intensity * 0.5);
 
-            const skyColor = new THREE.Color().lerpColors(
-                new THREE.Color(0xff8c00),
-                new THREE.Color(0x87CEEB),
-                Math.abs(intensity)
-            );
-            this.scene.background = skyColor;
+            this.skyColor.lerpColors(this.sunsetColor, this.dayColor, Math.abs(intensity));
+            this.scene.background = this.skyColor;
 
             if (this.scene.fog instanceof THREE.FogExp2) {
-                this.scene.fog.color.copy(skyColor);
+                this.scene.fog.color.copy(this.skyColor);
                 this.scene.fog.density = (0.005 * sizeFactor) / (cameraDistance * 0.1 || 1);
             }
         }

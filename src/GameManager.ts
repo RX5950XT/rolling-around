@@ -101,65 +101,82 @@ export class GameManager {
         this.sizeVal.innerText = this.player.size.toFixed(2);
     }
 
+    // Reusable temp vector to avoid GC pressure
+    private _collisionPushDir = new THREE.Vector3();
+
     private checkCollisions() {
         const playerPos = this.player.mesh.position;
         const playerRadius = this.player.size;
         const playerVol = this.player.volume;
         const toRemove: number[] = [];
 
-        let pushDir = new THREE.Vector3();
+        const pushDir = this._collisionPushDir;
+        pushDir.set(0, 0, 0);
         let maxSeparation = 0;
         let collisionCount = 0;
         const MAX_COLLISIONS_PER_FRAME = 5;
+
+        // Quick-reject radius: objects farther than this cannot possibly collide
+        const quickRejectDist = playerRadius + 80;
+        const quickRejectDistSq = quickRejectDist * quickRejectDist;
 
         for (let i = 0; i < this.world.collidables.length; i++) {
             if (collisionCount >= MAX_COLLISIONS_PER_FRAME) break;
 
             const obj = this.world.collidables[i];
-            const objPos = new THREE.Vector3();
-            obj.getWorldPosition(objPos);
+            const objData = (obj as THREE.Object3D).userData;
+            const cached = objData.cachedPos;
+            if (!cached) continue;
 
-            const distSq = playerPos.distanceToSquared(objPos);
-            const objRadius = (obj as THREE.Object3D).userData.radius || 1;
-            const collisionDistSq = Math.pow(playerRadius + objRadius, 2);
+            // Phase 1: cheap squared-distance pre-filter using cached position
+            const dx = playerPos.x - cached.x;
+            const dy = playerPos.y - cached.y;
+            const dz = playerPos.z - cached.z;
+            const distSq = dx * dx + dy * dy + dz * dz;
+            if (distSq > quickRejectDistSq) continue;
 
-            if (distSq < collisionDistSq) {
-                const objVol = (obj as THREE.Object3D).userData.volume || 1;
-                if (playerVol > objVol) {
-                    this.player.attachObject(obj);
-                    this.audio.playPopSound(this.player.size);
-                    toRemove.push(i);
+            // Phase 2: precise collision using actual radius
+            const objRadius = objData.radius || 1;
+            const collisionDistSq = (playerRadius + objRadius) * (playerRadius + objRadius);
+            if (distSq >= collisionDistSq) continue;
+
+            const objVol = objData.volume || 1;
+            if (playerVol > objVol) {
+                this.player.attachObject(obj);
+                this.audio.playPopSound(this.player.size);
+                toRemove.push(i);
+            } else {
+                const dist = Math.sqrt(distSq);
+                if (dist < 0.001) {
+                    pushDir.x += Math.random() - 0.5;
+                    pushDir.z += Math.random() - 0.5;
                 } else {
-                    const dir = new THREE.Vector3().subVectors(playerPos, objPos);
-                    dir.y = 0;
-                    const dist = Math.sqrt(distSq);
-                    if (dist < 0.001) {
-                        dir.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
-                    } else {
-                        dir.normalize();
-                    }
-
-                    pushDir.add(dir);
-
-                    const separation = (playerRadius + objRadius) - dist + 0.2;
-                    if (separation > maxSeparation) {
-                        maxSeparation = separation;
-                    }
-                    collisionCount++;
+                    pushDir.x += dx / dist;
+                    pushDir.z += dz / dist;
                 }
+
+                const separation = (playerRadius + objRadius) - dist + 0.2;
+                if (separation > maxSeparation) {
+                    maxSeparation = separation;
+                }
+                collisionCount++;
             }
         }
 
         if (collisionCount > 0) {
-            if (pushDir.lengthSq() > 0.001) {
-                pushDir.normalize();
+            const pushLenSq = pushDir.x * pushDir.x + pushDir.z * pushDir.z;
+            if (pushLenSq > 0.001) {
+                const pushLen = Math.sqrt(pushLenSq);
+                pushDir.x /= pushLen;
+                pushDir.z /= pushLen;
             } else {
                 pushDir.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
             }
 
-            // Ensure complete separation from all colliding objects
             const separation = maxSeparation + 0.5;
-            this.player.mesh.position.add(pushDir.clone().multiplyScalar(separation));
+            this.player.mesh.position.x += pushDir.x * separation;
+            this.player.mesh.position.y += pushDir.y * separation;
+            this.player.mesh.position.z += pushDir.z * separation;
 
             const bounceForce = Math.min(
                 Math.max(this.player.velocity.length() * 0.5, 4),

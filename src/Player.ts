@@ -24,6 +24,10 @@ export class Player {
 
     private keys: { [key: string]: boolean } = {};
 
+    // Reusable temp vectors to avoid per-frame GC
+    private _force = new THREE.Vector3();
+    private _moveAxis = new THREE.Vector3();
+
     constructor(scene: THREE.Scene) {
         this.mesh = new THREE.Group();
 
@@ -85,18 +89,16 @@ export class Player {
             this.grow(growthAmount);
         }
 
-        const force = new THREE.Vector3(0, 0, 0);
+        const force = this._force;
+        force.set(0, 0, 0);
         if (this.keys['KeyW'] || this.keys['ArrowUp']) force.z -= 1;
         if (this.keys['KeyS'] || this.keys['ArrowDown']) force.z += 1;
         if (this.keys['KeyA'] || this.keys['ArrowLeft']) force.x -= 1;
         if (this.keys['KeyD'] || this.keys['ArrowRight']) force.x += 1;
 
-        // Unified speed formula: bigger ball = faster
-        // Acceleration barely decays: size^0.01 means 200m only reduces by ~6%
         const scaleFactor = Math.max(1, Math.pow(this.size, 0.01));
         const acceleration = (this.speed / scaleFactor) * deltaTime;
 
-        // Max speed: base growth + extreme flat multipliers for huge balls
         const baseMaxSpeed = this.maxSpeed * Math.pow(this.size, 0.95);
         let multiplier = 1.0;
         if (this.size >= 200) multiplier = 30.0;
@@ -121,7 +123,8 @@ export class Player {
             this.velocity.set(0, 0, 0);
         }
 
-        this.mesh.position.add(this.velocity.clone().multiplyScalar(deltaTime));
+        this.mesh.position.x += this.velocity.x * deltaTime;
+        this.mesh.position.z += this.velocity.z * deltaTime;
 
         let px = this.mesh.position.x;
         let pz = this.mesh.position.z;
@@ -144,7 +147,8 @@ export class Player {
         }
 
         if (this.velocity.lengthSq() > 0.001) {
-            const moveAxis = new THREE.Vector3(-this.velocity.z, 0, this.velocity.x).normalize();
+            const moveAxis = this._moveAxis;
+            moveAxis.set(-this.velocity.z, 0, this.velocity.x).normalize();
             const distance = this.velocity.length() * deltaTime;
             let angle = -distance / this.size;
             if (isNaN(angle) || !isFinite(angle)) angle = 0;
