@@ -26,10 +26,11 @@ Rolling Around 是一個基於 Three.js 的 3D 滾球收集遊戲，使用 TypeS
 3D 渲染核心，負責：
 - Three.js Scene、Camera、Renderer 初始化
 - 方向光與環境光設定（含陰影）
-- 滑鼠拖曳相機旋轉控制
+- Pointer Lock 滑鼠相機控制（支援上下俯仰，pitch clamped [0.05, PI/2.2]）
 - 視窗大小變化響應
 - 動態相機跟隨（根據玩家大小調整距離與高度）
-- 相機防穿地形邏輯
+- 相機防穿牆：raycaster 排除 ground 與 player 後尋找遮擋物
+- 相機防穿地形：確保不低於地表 + size*0.3
 
 ### Player.ts
 玩家球體，負責：
@@ -41,9 +42,10 @@ Rolling Around 是一個基於 Three.js 的 3D 滾球收集遊戲，使用 TypeS
 - 物件附加（attach）到球體表面
 
 **關鍵參數**:
-- `speed = 35` — 基礎加速度
-- `maxSpeed = 50` — 最大速度（隨 sqrt(size) 調整）
-- `friction = 0.3` — 每秒摩擦係數
+- `speed = 120` — 基礎加速度
+- `maxSpeed = 60` — 最大速度（隨 sqrt(size) 調整）
+- `friction = 0.15` — 每秒摩擦係數
+- `weatherFrictionModifier = 1.0` — 天氣對摩擦的乘數（由 WeatherSystem 控制）
 - `baseGrowthRate = 0.05` — 基礎成長速率
 - `MAX_SIZE = 500` — 體積上限
 
@@ -51,14 +53,14 @@ Rolling Around 是一個基於 Three.js 的 3D 滾球收集遊戲，使用 TypeS
 無限世界管理，負責：
 - 200x200 區塊動態載入/卸載（renderDistance = 2）
 - 地形高度計算（sin/cos 組合雜訊）
-- 物件密度控制（tiny:80, small:40, medium:15, large:4）
+- 物件密度控制（tiny:30, small:15, medium:6, large:2）— 已為效能調降
 - 移動實體更新（動物、車子）
 - collidables 與 movingEntities 清單管理
 
 ### ObjectFactory.ts
 程序化物件工廠，負責：
 - 四種尺寸類別的隨機物件生成
-- 體積與碰撞半徑計算
+- 體積與碰撞半徑計算（radius = max(x,z)/2，水平 footprint 避免垂直 phantom collision）
 - MeshToonMaterial 材質池
 
 ### WeatherSystem.ts
@@ -66,14 +68,15 @@ Rolling Around 是一個基於 Three.js 的 3D 滾球收集遊戲，使用 TypeS
 - 24 小時日夜循環（timeSpeed = 0.5 hr/sec）
 - 動態天空顏色與光照強度
 - 隨機降雨（每 40 秒判定一次）
-- 雨粒子效果（10,000 粒子）
+- 雨粒子效果（2,000 粒子）— 已為效能調降
 - 動態霧效
+- 天氣影響摩擦：透過 `weatherFrictionModifier` 調整，不直接覆蓋 `Player.friction`
 
 ### AudioManager.ts
 程序化音效，負責：
-- 滾動音效（triangle oscillator，根據速度與大小調整）
-- 吞食音效（sine oscillator，根據大小調整音高）
-- 環境音效（sawtooth + lowpass filter，模擬風聲/雨聲）
+- 滾動音效：rumble（sine 40Hz）+ texture（pink noise），依速度與大小調整
+- 吞食音效：sine + triangle + white noise 合成，依大小調整音高
+- 環境音效：white noise + BiquadFilter（lowpass/highpass），模擬風聲/雨聲
 - 注意：Web Audio API 需要使用者互動後初始化
 
 ## 資料流
@@ -117,6 +120,9 @@ GameManager.animate()
 - 音效需使用者互動後才能初始化（瀏覽器限制）
 - 同時存在約 25 個區塊 × ~150 物件 = ~3,750 個 mesh，低階裝置可能卡頓
 - 碰撞檢測為簡單距離檢測，非精確物理
+- 彈開分離距離上限為 `playerRadius * 1.5`，避免被大物體彈飛過遠
+- 每幀最多處理 5 個碰撞物件，統一推開方向
+- Vite HMR 已關閉（vite.config.ts: `hmr: false`），避免多實例堆積
 
 ## 修改注意事項
 

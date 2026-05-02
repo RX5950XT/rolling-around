@@ -48,23 +48,35 @@
 
 ### 碰撞檢測
 - `checkCollisions()` 同時清理 `collidables` 和 `movingEntities`
-- 彈開邏輯使用 `break` 會提前結束迴圈，注意漏檢問題
+- 每幀最多處理 5 個碰撞物件，統一計算平均推開方向
+- 彈開分離距離上限為 `playerRadius * 1.5`，彈跳力度上限為 8
+- 不再使用 `break`，避免漏檢導致反覆彈跳
 
 ### 區塊管理
 - `destroyChunk()` 使用 `userData.isGround` 識別地面
 - 區塊大小 200，渲染距離 2，同時存在 25 個區塊
 - 調整物件密度時注意低階裝置效能
 
+### 天氣系統
+- 透過 `player.weatherFrictionModifier` 影響摩擦，不直接覆蓋 `Player.friction`
+- `weatherFrictionModifier` 在 `Player.update()` 中與基礎 `friction` 相乘後套用
+
 ### 音訊系統
 - 必須在使用者互動後初始化 AudioContext
 - 不可動態修改執行中 OscillatorNode 的 type
 - 使用 BiquadFilter + GainNode 模擬不同環境音效
+- 暫停時呼叫 `audioContext.suspend()`，恢復時 `resume()`
 
 ### UI 修改
 - 使用 CSS 變數（`--primary`, `--secondary` 等）
 - 字體使用 'Quicksand'
 - 支援 `prefers-reduced-motion`
 - 響應式設計：手機 < 480px 有獨立樣式
+
+## 開發設定
+
+- `vite.config.ts` 已關閉 HMR (`hmr: false`)，避免熱重載導致多 GameManager 實例堆積
+- HMR 觸發時執行 `window.location.reload()` 硬重載
 
 ## 部署流程
 
