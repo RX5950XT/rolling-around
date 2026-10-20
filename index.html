@@ -2,9 +2,14 @@
 <html lang="zh-TW">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#ff7aa8" />
+    <meta name="description" content="滾動一切、越滾越大的 3D 滾球收集遊戲。" />
     <title>Rolling Around</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%8D%3C/text%3E%3C/svg%3E">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%23ff7aa8'/%3E%3Crect x='4' y='44' width='92' height='12' fill='%23ffe08a'/%3E%3Ccircle cx='34' cy='30' r='9' fill='%23fff' opacity='.7'/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Quicksand:wght@500;600;700&display=swap">
     <link rel="stylesheet" href="/style.css">
   </head>
   <body>
@@ -13,60 +18,105 @@
 
         <div id="start-screen" class="overlay">
             <div class="menu-card">
-                <div class="logo-container">
-                    <div class="logo-ball"></div>
-                </div>
+                <div class="logo-ball" aria-hidden="true"></div>
                 <h1>Rolling Around</h1>
-                <p class="subtitle">滾動一切，無限成長！</p>
+                <p class="subtitle">滾過草地、吞下城市，越滾越大！</p>
 
-                <div class="controls-grid">
-                    <div class="control-item">
-                        <div class="key-group">
-                            <div class="key">W</div><div class="key">A</div><div class="key">S</div><div class="key">D</div>
-                        </div>
-                    </div>
-                    <div class="control-desc">移動角色</div>
-
-                    <div class="control-item">
-                        <div class="key special">滑鼠移動</div>
-                    </div>
-                    <div class="control-desc">旋轉視角</div>
-
-                    <div class="control-item">
-                        <div class="key">空白鍵</div>
-                    </div>
-                    <div class="control-desc">跳躍</div>
-
-                    <div class="control-item">
-                        <div class="key">ESC</div>
-                    </div>
-                    <div class="control-desc">暫停 / 繼續</div>
+                <div class="mode-buttons">
+                    <button class="btn btn-primary" data-mode="challenge">
+                        <span class="btn-title">限時挑戰</span>
+                        <span class="btn-sub" id="best-challenge">4 分鐘內滾到最大</span>
+                    </button>
+                    <button class="btn btn-secondary" data-mode="free">
+                        <span class="btn-title">自由滾動</span>
+                        <span class="btn-sub" id="best-free">沒有時間限制</span>
+                    </button>
                 </div>
 
-                <button id="start-btn">開始滾動</button>
+                <dl class="controls-grid desktop-only">
+                    <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>滾動</dd>
+                    <dt><kbd class="wide">滑鼠</kbd><kbd>Q</kbd><kbd>E</kbd></dt><dd>轉動視角</dd>
+                    <dt><kbd class="wide">空白鍵</kbd></dt><dd>跳躍</dd>
+                    <dt><kbd class="wide">Shift</kbd></dt><dd>按住衝刺（耗體力）</dd>
+                    <dt><kbd>P</kbd><kbd>M</kbd></dt><dd>暫停／音樂</dd>
+                </dl>
+                <p class="touch-help touch-only">左半邊拖曳滾動，右半邊拖曳轉視角，按住「衝」加速</p>
+                <p class="tip">比你小的東西都吃得下。撞到太大的東西會掉東西喔！</p>
             </div>
         </div>
 
         <div id="pause-screen" class="overlay hidden">
-            <div class="menu-card">
-                <div class="logo-container small">
-                    <div class="logo-ball"></div>
+            <div class="menu-card wide">
+                <h2>暫停中</h2>
+                <p class="subtitle" id="pause-summary"></p>
+                <div class="collection-head">
+                    <h3>收集圖鑑</h3>
+                    <span id="pause-found" class="count-pill"></span>
                 </div>
-                <h1>暫停中</h1>
-                <p class="subtitle">休息一下，待會再滾！</p>
-                <button id="resume-btn">繼續遊戲</button>
+                <div class="collection" id="pause-collection"></div>
+                <div class="row-buttons">
+                    <button class="btn btn-primary" id="resume-btn"><span class="btn-title">繼續滾動</span></button>
+                    <button class="btn btn-ghost" id="restart-btn"><span class="btn-title">重新開始</span></button>
+                </div>
             </div>
         </div>
 
-        <div id="hud">
-            <div class="hud-icon">&#127775;</div>
-            <div class="hud-content">
-                <div class="hud-label">目前大小</div>
-                <div>
-                    <span id="size-val" class="hud-value">1.00</span>
-                    <span class="hud-unit">m</span>
+        <div id="end-screen" class="overlay hidden">
+            <div class="menu-card wide">
+                <h2>時間到！</h2>
+                <div class="result">
+                    <span class="result-size" id="end-size">0.00</span><span class="result-unit" id="end-unit">m</span>
+                </div>
+                <p class="result-title" id="end-title"></p>
+                <p class="record-badge hidden" id="end-record">新紀錄！</p>
+                <ul class="stats">
+                    <li><strong id="end-eaten">0</strong><span>吞下物件</span></li>
+                    <li><strong id="end-combo">0</strong><span>最高連擊</span></li>
+                    <li><strong id="end-found">0</strong><span>發現種類</span></li>
+                </ul>
+                <div class="collection" id="end-collection"></div>
+                <div class="row-buttons">
+                    <button class="btn btn-primary" id="again-btn"><span class="btn-title">再玩一次</span></button>
                 </div>
             </div>
+        </div>
+
+        <div id="hud" class="hidden">
+            <div class="hud-card size-card">
+                <div class="mini-ball" aria-hidden="true"></div>
+                <div class="size-info">
+                    <div class="size-line"><span id="size-val" class="hud-value">1.00</span><span id="size-unit" class="hud-unit">m</span></div>
+                    <div class="title-line"><span id="title-val">小彈珠</span><span id="next-title" class="next-title"></span></div>
+                    <div class="progress"><div id="progress-fill" class="progress-fill"></div></div>
+                </div>
+            </div>
+
+            <div id="timer" class="hud-card timer hidden">4:00</div>
+
+            <div class="hud-right">
+                <div class="hud-row">
+                    <div class="hud-card eaten-card"><span id="eaten-val" class="eaten-val">0</span><span class="eaten-label">件</span></div>
+                    <button id="pause-btn" class="hud-card hud-btn touch-only" aria-label="暫停">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg>
+                    </button>
+                </div>
+                <div id="powerups" class="powerups"></div>
+            </div>
+
+            <div id="combo" class="combo" aria-live="polite"></div>
+            <ol id="feed" class="feed"></ol>
+            <div id="banner" class="banner" aria-live="polite"></div>
+            <div id="hint" class="hint"></div>
+            <div id="stamina" class="stamina" aria-hidden="true">
+                <span class="stamina-label">衝刺</span>
+                <div class="stamina-track"><div id="stamina-fill" class="stamina-fill"></div></div>
+            </div>
+        </div>
+
+        <div id="touch-controls" class="touch-only hidden">
+            <div id="joystick" class="joystick"><div class="joystick-knob"></div></div>
+            <button id="touch-jump" class="touch-btn" aria-label="跳躍">跳</button>
+            <button id="touch-dash" class="touch-btn dash" aria-label="衝刺">衝</button>
         </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
