@@ -8,6 +8,7 @@ import { Effects } from './Effects';
 import { HUD, formatLength, type RunStats } from './HUD';
 import { TouchControls } from './TouchControls';
 import { POWERUPS, type PowerupType } from './ObjectFactory';
+import { boxContact, type SolidBox } from './worldLayout';
 import {
     CHALLENGE_SECONDS, COMBO_WINDOW, GROWTH_EFFICIENCY, TITLES, canEat, comboBonus, jumpVelocity, titleIndex, topSpeed,
 } from './rules';
@@ -30,6 +31,7 @@ export class GameManager {
     private disposed: boolean = false;
     private timer = new THREE.Timer();
     private isTouch: boolean;
+    private touchControls?: TouchControls;
 
     private mode: Mode = 'free';
     private timeLeft = CHALLENGE_SECONDS;
@@ -47,6 +49,7 @@ export class GameManager {
     private bumpPoint = new THREE.Vector3();
 
     private terrain = (x: number, z: number) => this.world.getTerrainHeight(x, z);
+    private rollingSurface = (x: number, z: number) => this.world.getRollingHeight(x, z, this.player.mesh.position.y - this.player.size * 0.9);
 
     constructor() {
         this.engine = new Engine();
@@ -63,7 +66,7 @@ export class GameManager {
         this.isTouch = window.matchMedia('(pointer: coarse)').matches;
         if (this.isTouch) {
             document.body.classList.add('touch');
-            new TouchControls(this.player, this.engine);
+            this.touchControls = new TouchControls(this.player, this.engine);
         }
 
         document.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(btn => {
@@ -71,6 +74,7 @@ export class GameManager {
         });
         document.getElementById('resume-btn')!.addEventListener('click', () => this.resumeGame());
         document.getElementById('pause-btn')!.addEventListener('click', () => this.pauseGame());
+        document.getElementById('music-btn')!.addEventListener('click', () => this.toggleMusic());
         // A fresh page is the simplest full reset of world, ball and audio graph.
         document.getElementById('restart-btn')!.addEventListener('click', () => window.location.reload());
         document.getElementById('again-btn')!.addEventListener('click', () => window.location.reload());
@@ -91,7 +95,7 @@ export class GameManager {
             // Pointer lock eats Esc to unlock and pointerlockchange already paused; ignore the trailing keydown.
             if (e.code === 'Escape' && performance.now() - this.lastAutoPause > 400) this.togglePause();
             if (e.code === 'KeyM' && this.started) {
-                this.hud.hint(this.audio.toggleMusic() ? '音樂：開' : '音樂：關', 1.2);
+                this.toggleMusic();
             }
         });
 
@@ -107,6 +111,14 @@ export class GameManager {
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) this.pauseGame();
         });
+    }
+
+    private toggleMusic() {
+        const on = this.audio.toggleMusic();
+        const button = document.getElementById('music-btn')!;
+        button.textContent = on ? '音樂：開' : '音樂：關';
+        button.setAttribute('aria-pressed', String(on));
+        this.hud.hint(on ? '音樂：開' : '音樂：關', 1.2);
     }
 
     private loadBest(): Record<Mode, number> {
@@ -165,6 +177,11 @@ export class GameManager {
         if (!this.started || this.ended || this.isPaused) return;
         this.isPaused = true;
         this.player.enabled = false;
+        this.touchControls?.reset();
+        document.getElementById('touch-controls')!.classList.add('hidden');
+        const music = document.getElementById('music-btn')!;
+        music.textContent = this.audio.musicOn ? '音樂：開' : '音樂：關';
+        music.setAttribute('aria-pressed', String(this.audio.musicOn));
         this.hud.showPause(this.stats);
         this.audio.suspend();
         this.engine.exitPointerLock();
@@ -174,6 +191,7 @@ export class GameManager {
         if (!this.started || this.ended || !this.isPaused) return;
         this.isPaused = false;
         this.player.enabled = true;
+        if (this.isTouch) document.getElementById('touch-controls')!.classList.remove('hidden');
         this.hud.hidePause();
         this.timer.reset();
         this.audio.resume();
@@ -195,6 +213,8 @@ export class GameManager {
         this.ended = true;
         this.isPaused = true;
         this.player.enabled = false;
+        this.touchControls?.reset();
+        document.getElementById('touch-controls')!.classList.add('hidden');
         this.engine.exitPointerLock();
         this.audio.updateRollingSound(0, 1, this.player.size, 'ground');
         this.audio.playEndSound();
@@ -217,6 +237,10 @@ export class GameManager {
             const ud = obj.userData;
             const op = obj.position;
             const edible = canEat(ud.volume, pv);
+            if (ud.building && !edible) {
+                this.collideBuilding(obj);
+                continue;
+            }
             let dx = pp.x - op.x;
             let dz = pp.z - op.z;
             let d2 = dx * dx + dz * dz;
@@ -255,6 +279,26 @@ export class GameManager {
         }
     }
 
+    private collideBuilding(obj: THREE.Object3D) {
+        const pos = this.player.mesh.position, k = obj.userData.buildingScale as number;
+        if (Math.abs(pos.x - obj.position.x) > 9 * k + this.player.size
+            || Math.abs(pos.z - obj.position.z) > 9 * k + this.player.size) return;
+        const c = Math.cos(obj.rotation.y), s = Math.sin(obj.rotation.y);
+        for (const box of obj.userData.boxes as SolidBox[]) {
+            const dx = pos.x - obj.position.x, dz = pos.z - obj.position.z;
+            const hit = boxContact((c * dx - s * dz) / k, (pos.y - obj.position.y) / k,
+                (s * dx + c * dz) / k, this.player.size / k, box);
+            if (!hit) continue;
+            if (Math.abs(hit.y) > 0.5) {
+                pos.y += hit.y * hit.depth * k;
+                if (this.player.verticalVelocity * hit.y < 0) this.player.verticalVelocity = 0;
+                if (hit.y > 0) this.player.isGrounded = true;
+            } else {
+                this.resolveBump(c * hit.x + s * hit.z, -s * hit.x + c * hit.z, hit.depth * k);
+            }
+        }
+    }
+
     private pull(obj: THREE.Object3D, dx: number, dz: number, d2: number, delta: number) {
         const d = Math.sqrt(d2) || 1;
         const step = Math.min(d, (this.player.size * 12 + 8) * delta);
@@ -271,6 +315,7 @@ export class GameManager {
 
         const op = obj.position;
         this.effects.burst(op.x, op.y + ud.height * 0.5, op.z, 5 + Math.min(10, this.combo), this.player.size * 5 + 3);
+        if (ud.building) for (const child of obj.children) child.visible = true;
         this.player.attachObject(obj, ud.volume * GROWTH_EFFICIENCY * comboBonus(this.combo));
 
         this.eaten++;
@@ -419,11 +464,15 @@ export class GameManager {
     }
 
     private step(delta: number) {
-        this.player.update(delta, this.engine.cameraAngle, this.terrain, this.world.waterLevel);
-        this.updateContact(delta);
         this.world.update(delta);
         this.updatePowerups(delta);
-        this.checkCollisions(delta);
+        // Short physics steps keep sprinting balls from skipping thin walls on a slow frame.
+        const steps = Math.max(1, Math.ceil(delta / (1 / 60)));
+        for (let i = 0; i < steps; i++) {
+            this.player.update(delta / steps, this.engine.cameraAngle, this.rollingSurface, this.world.waterLevel);
+            this.checkCollisions(delta / steps);
+        }
+        this.updateContact(delta);
         this.updateCombo(delta);
         this.effects.update(delta, this.player.size);
 
@@ -453,6 +502,7 @@ export class GameManager {
 
     public dispose() {
         this.disposed = true;
+        this.touchControls?.reset();
         this.engine.exitPointerLock();
     }
 

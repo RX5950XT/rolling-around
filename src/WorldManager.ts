@@ -1,14 +1,16 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Player } from './Player';
-import { ObjectFactory, type PowerupType } from './ObjectFactory';
+import { ObjectFactory, KIND_BY_ID, type PowerupType } from './ObjectFactory';
 import { groundDetailTexture, surface, waterNormalTexture } from './materials';
-import { canEat, chunkObjectCap, pickObjectSize, populateRadius } from './rules';
+import { canEat, chunkObjectCap, populateRadius } from './rules';
+import { districtAt, planBlock, type Placement, type SolidBox } from './worldLayout';
+import { createBuilding, updateBuildingRoof } from './Buildings';
 
 export const WATER_LEVEL = -4.6;
 /** Layer for scenery the camera raycast must ignore (ground, water, particles, sky). */
 export const SCENERY_LAYER = 1;
 
-const TAU = Math.PI * 2;
 const POWERUP_ROLL: PowerupType[] = ['magnet', 'magnet', 'boost', 'boost', 'giant'];
 const SAND = new THREE.Color(0xf3dfa2);
 const GRASS_A = new THREE.Color(0xa3d96a);
@@ -33,6 +35,7 @@ export class WorldManager {
 
     private chunkSize: number = 100;
     private worldTier = 0;
+    private readonly seed = Math.floor(Math.random() * 0x100000000);
     /** Where the scaled terrain is sampled (x, z in tier-0 units) and how far it is lifted (y, meters). */
     private terrainShift = { x: 0, z: 0, y: 0 };
     private activeChunks: Map<string, THREE.Group> = new Map();
@@ -45,6 +48,7 @@ export class WorldManager {
     public powerups: THREE.Object3D[] = [];
 
     private groundMaterial = surface({ vertexColors: true, roughness: 0.95, map: groundDetailTexture() });
+    private streetMaterial = surface({ vertexColors: true, roughness: 0.95 });
     private water: THREE.Mesh;
     private waterRipples = waterNormalTexture();
     /** Plain lawn far below the chunks so the world never ends in a void at the horizon. */
@@ -168,7 +172,7 @@ export class WorldManager {
         const shore = this.waterLevel + 0.3 * this.terrainScale;
         for (const o of objs) {
             const ground = this.getTerrainHeight(o.position.x, o.position.z);
-            if (ground < shore) continue;
+            if (ground < shore || o.userData.size < this.player.size * 0.08) continue;
             o.position.y = ground + (o.userData.altitude || 0);
             const cx = Math.round(o.position.x / S);
             const cz = Math.round(o.position.z / S);
@@ -192,7 +196,35 @@ export class WorldManager {
     public getTerrainHeight(worldX: number, worldZ: number): number {
         const k = this.terrainScale;
         const t = this.terrainShift;
-        return baseHeight(worldX / k + t.x, worldZ / k + t.z) * k + t.y;
+        const x = worldX / k, z = worldZ / k;
+        const cx = Math.round(x / 100) * 100, cz = Math.round(z / 100) * 100;
+        const edge = Math.max(Math.abs(x - cx), Math.abs(z - cz));
+        const blend = Math.max(0, Math.min(1, (edge - 40) / 10));
+        const raw = baseHeight(x + t.x, z + t.z);
+        const pad = Math.max(WATER_LEVEL + 1, baseHeight(cx + t.x, cz + t.z));
+        let h = pad + (raw - pad) * blend * blend * (3 - 2 * blend);
+        // Connected roads stay above water, with grassy embankments instead of submerged crossings.
+        const road = Math.min(Math.abs(x - cx), Math.abs(z - cz));
+        h = Math.max(h, WATER_LEVEL + 1 - Math.max(0, road - 10) * 0.5);
+        return h * k + t.y;
+    }
+
+    /** Roof support only when approaching from above; an indoor ball still rolls on the floor. */
+    public getRollingHeight(x: number, z: number, bottom: number): number {
+        let height = this.getTerrainHeight(x, z);
+        for (const o of this.collidables) {
+            if (!o.userData.building || canEat(o.userData.volume, this.player.volume)) continue;
+            const k = o.userData.buildingScale;
+            const c = Math.cos(o.rotation.y), s = Math.sin(o.rotation.y);
+            const dx = (x - o.position.x) / k, dz = (z - o.position.z) / k;
+            const lx = c * dx - s * dz, lz = s * dx + c * dz;
+            for (const b of o.userData.boxes as SolidBox[]) {
+                const top = o.position.y + (b.y + b.h / 2) * k;
+                if (bottom >= top - this.player.size * 0.2 && Math.abs(lx - b.x) <= b.w / 2
+                    && Math.abs(lz - b.z) <= b.d / 2) height = Math.max(height, top);
+            }
+        }
+        return height;
     }
 
     /** Enough chunks to reach past the camera (which trails ~9 ball radii behind). */
@@ -277,76 +309,103 @@ export class WorldManager {
         plane.userData.isGround = true;
         plane.layers.set(SCENERY_LAYER);
         chunkGroup.add(plane);
+        this.addStreets(chunkGroup, cx, cz);
 
         this.scene.add(chunkGroup);
         this.activeChunks.set(key, chunkGroup);
         return chunkGroup;
     }
 
-    /** Fill a chunk with clusters of objects sized around the current ball. */
+    private addStreets(chunk: THREE.Group, cx: number, cz: number) {
+        const k = this.terrainScale, S = this.chunkSize;
+        const parts: THREE.BufferGeometry[] = [];
+        const strip = (x: number, z: number, w: number, d: number, color: number, lift: number) => {
+            const geo = new THREE.PlaneGeometry(w * k, d * k, Math.max(1, Math.ceil(w / 5)), Math.max(1, Math.ceil(d / 5)));
+            geo.rotateX(-Math.PI / 2).translate(cx * S + x * k, 0, cz * S + z * k);
+            const pos = geo.attributes.position;
+            const colors = new Float32Array(pos.count * 3), c = new THREE.Color(color);
+            for (let i = 0; i < pos.count; i++) {
+                pos.setY(i, this.getTerrainHeight(pos.getX(i), pos.getZ(i)) + lift * k);
+                c.toArray(colors, i * 3);
+            }
+            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            geo.computeVertexNormals();
+            parts.push(geo);
+        };
+        strip(0, 0, 20, 100, 0xe6d9be, 0.025);
+        strip(0, 0, 100, 20, 0xe6d9be, 0.026);
+        strip(0, 0, 10, 100, 0x737d8b, 0.05);
+        strip(0, 0, 100, 10, 0x737d8b, 0.051);
+        for (const t of [-44, -32, -20, 20, 32, 44]) {
+            strip(t, 0, 5, 0.25, 0xfff4e0, 0.08);
+            strip(0, t, 0.25, 5, 0xfff4e0, 0.08);
+        }
+        for (const t of [-3, -1, 1, 3]) for (const side of [-8, 8]) {
+            strip(t, side, 1, 3, 0xfff4e0, 0.08);
+            strip(side, t, 3, 1, 0xfff4e0, 0.08);
+        }
+        const district = districtAt(this.seed, cx, cz, this.worldTier);
+        if (this.worldTier < 3) for (const x of [-24, 24]) for (const z of [-24, 24]) {
+            if (district === 'park') continue;
+            strip(x, Math.sign(z) * 13, 6, 8, 0xe6d9be, 0.03);
+            strip(x, z, 16, 16, district === 'farm' ? 0xa77c50 : 0xe8cfa5, 0.03);
+            if (district === 'farm' && x > 0) for (const row of [-6, -3, 0, 3, 6]) strip(x, z + row, 16, 1, 0x628e45, 0.05);
+        }
+        const mesh = new THREE.Mesh(mergeGeometries(parts), this.streetMaterial);
+        parts.forEach(p => p.dispose());
+        mesh.userData.isGround = true;
+        mesh.receiveShadow = true;
+        mesh.layers.set(SCENERY_LAYER);
+        chunk.add(mesh);
+    }
+
+    /** Stock named places, not size-matched objects scattered over empty grass. */
     private stockChunk(chunk: THREE.Group, cx: number, cz: number) {
         const size = this.player.size;
         this.removeObjects(chunk, o => o.userData.size < size * 0.08);
-
-        const S = this.chunkSize;
-        const x0 = cx * S;
-        const z0 = cz * S;
-        const count = chunkObjectCap(size, S) - (chunk.children.length - 1);
-        const clusters: [number, number][] = [];
-        const clusterCount = size < 3 ? 8 : 3 + Math.floor(Math.random() * 3);
-        for (let i = 0; i < clusterCount; i++) {
-            clusters.push([x0 + (Math.random() - 0.5) * S * 0.8, z0 + (Math.random() - 0.5) * S * 0.8]);
+        const { objects } = planBlock(this.seed, cx, cz, this.worldTier);
+        const existing = new Set(chunk.children.map(o => o.userData.slot));
+        let budget = chunkObjectCap(size, this.chunkSize) - chunk.children.filter(o => !o.userData.isGround).length;
+        for (const [index, placement] of objects.entries()) {
+            const slot = `${this.worldTier}:${cx},${cz}:${index}`;
+            if (budget <= 0) break;
+            if (existing.has(slot) || placement.size * this.terrainScale < size * 0.08) continue;
+            if (this.spawnPlacement(chunk, placement, cx, cz, slot)) budget--;
         }
-        // The chunk under the ball always gets a patch right next to it, so there is something to eat at once.
-        const p = this.player.mesh.position;
-        if (Math.abs(p.x - x0) < S / 2 && Math.abs(p.z - z0) < S / 2) {
-            const a = Math.random() * TAU;
-            clusters[0] = [p.x + Math.cos(a) * size * 8, p.z + Math.sin(a) * size * 8];
-        }
-        // Patch radius tracks the ball so a tiny ball finds dense flowerbeds, not one flower per lawn.
-        const spread = Math.min(S * 0.17, Math.max(8, size * 12));
-
-        for (let i = 0; i < count; i++) {
-            let x = x0 + (Math.random() - 0.5) * S;
-            let z = z0 + (Math.random() - 0.5) * S;
-            if (Math.random() < 0.7) {
-                // Center-heavy disk: dense patches with open lawn between them.
-                const [ccx, ccz] = clusters[i % clusterCount];
-                const r = spread * Math.random();
-                const a = Math.random() * TAU;
-                x = ccx + Math.cos(a) * r;
-                z = ccz + Math.sin(a) * r;
-            }
-            this.spawnObject(chunk, pickObjectSize(size, Math.random()), x, z);
-        }
-
-        if (Math.random() < 0.5) {
-            const type = POWERUP_ROLL[Math.floor(Math.random() * POWERUP_ROLL.length)];
-            this.spawnPowerup(chunk, type, x0 + (Math.random() - 0.5) * S, z0 + (Math.random() - 0.5) * S);
+        if (!chunk.children.some(o => o.userData.powerup)) {
+            const type = POWERUP_ROLL[Math.abs(cx + cz) % POWERUP_ROLL.length];
+            this.spawnPowerup(chunk, type, cx * this.chunkSize + 11 * this.terrainScale, cz * this.chunkSize);
         }
     }
 
-    private spawnObject(chunk: THREE.Group, objSize: number, x: number, z: number) {
+    private spawnPlacement(chunk: THREE.Group, p: Placement, cx: number, cz: number, slot: string) {
+        const k = this.terrainScale;
+        const x = cx * this.chunkSize + p.x * k, z = cz * this.chunkSize + p.z * k;
         const ground = this.getTerrainHeight(x, z);
-        if (ground < this.waterLevel + 0.3 * this.terrainScale) return;
-
-        const kind = ObjectFactory.kindForSize(objSize);
-        const obj = ObjectFactory.create(kind, objSize);
+        if (ground < this.waterLevel + 0.3 * k) return false;
+        const kind = KIND_BY_ID.get(p.id)!;
+        const obj = p.building ? createBuilding(p.building, k) : ObjectFactory.create(kind, p.size * k);
         const ud = obj.userData;
-        const p = this.player.mesh.position;
+        const player = this.player.mesh.position;
         const s = this.player.size;
-        // Never drop an un-eatable object on top of the ball.
         const clear = s + ud.radius + s;
-        if (!canEat(ud.volume, this.player.volume) && (x - p.x) ** 2 + (z - p.z) ** 2 < clear * clear) return;
-
-        ud.altitude = kind.sky ? objSize * (0.6 + Math.random() * 0.8) : 0;
-        obj.rotation.y = Math.random() * TAU;
-        obj.position.set(x, ground + ud.altitude, z);
-        obj.castShadow = objSize > Math.max(0.6, s * 0.3);
-        obj.receiveShadow = objSize > s;
+        if (!canEat(ud.volume, this.player.volume) && (x - player.x) ** 2 + (z - player.z) ** 2 < clear * clear) return false;
+        // Carried-over buildings own their footprint even after the street grid grows.
+        if (this.collidables.some(o => o.userData.building && o.userData.slot?.split(':')[0] !== String(this.worldTier)
+            && Math.abs(x - o.position.x) < 9 * o.userData.buildingScale + ud.radius
+            && Math.abs(z - o.position.z) < 9 * o.userData.buildingScale + ud.radius)) return false;
+        ud.slot = slot;
+        ud.altitude = 0;
+        if (p.route) ud.route = { minX: cx * this.chunkSize + p.route.minX * k, maxX: cx * this.chunkSize + p.route.maxX * k,
+            minZ: cz * this.chunkSize + p.route.minZ * k, maxZ: cz * this.chunkSize + p.route.maxZ * k };
+        obj.rotation.y = p.rotation;
+        obj.position.set(x, ground, z);
+        obj.castShadow = true;
+        obj.receiveShadow = true;
         chunk.add(obj);
         this.collidables.push(obj);
         if (ud.motion) this.movingEntities.push(obj);
+        return true;
     }
 
     private spawnPowerup(chunk: THREE.Group, type: PowerupType, x: number, z: number) {
@@ -374,8 +433,16 @@ export class WorldManager {
             }
 
             const speed = ud.moveSpeed * (scared ? 2.2 : 1);
-            const x = e.position.x + ud.moveDir.x * speed * deltaTime;
-            const z = e.position.z + ud.moveDir.z * speed * deltaTime;
+            let x = e.position.x + ud.moveDir.x * speed * deltaTime;
+            let z = e.position.z + ud.moveDir.z * speed * deltaTime;
+            const route = ud.route;
+            if (route) {
+                if (route.minZ === route.maxZ) { ud.moveDir.set(ud.moveDir.x >= 0 ? 1 : -1, 0, 0); z = route.minZ; }
+                if (x < route.minX || x > route.maxX) ud.moveDir.x *= -1;
+                if (z < route.minZ || z > route.maxZ) ud.moveDir.z *= -1;
+                x = Math.max(route.minX, Math.min(route.maxX, x));
+                z = Math.max(route.minZ, Math.min(route.maxZ, z));
+            }
             const hop = scared ? Math.abs(Math.sin(this.time * 14 + ud.size)) * ud.height * 0.25 : 0;
             const bob = ud.motion === 'fly' ? Math.sin(this.time * 2 + ud.size) * ud.height * 0.3 : 0;
             e.position.set(x, this.getTerrainHeight(x, z) + ud.altitude + hop + bob, z);
@@ -391,6 +458,7 @@ export class WorldManager {
 
     /** Hide objects too small to matter at their distance; cuts draw calls without touching gameplay. */
     private updateVisibility() {
+        for (const o of this.collidables) if (o.userData.building) updateBuildingRoof(o, this.player.mesh.position, this.player.size);
         if (++this.cullFrame % 8 !== 0) return;
         const p = this.player.mesh.position;
         const base = this.player.size * 40;

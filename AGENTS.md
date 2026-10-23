@@ -34,6 +34,8 @@
 | Engine | 3D 渲染、後製光暈、自動降級、相機、光照 | Three.js |
 | Player | 輸入、物理（抓地、坡道、彈跳、浮水）、成長、黏附物件 | Three.js, rules |
 | WorldManager | 區塊生成、地形、物件管理、世界分級 | Three.js, ObjectFactory, Player, rules |
+| worldLayout | 固定種子街區、物件關係、建築碰撞盒與球碰撞公式 | 無 |
+| Buildings | 空心建築幾何、材質快取、進入時隱藏屋頂 | Three.js, materials, worldLayout |
 | ObjectFactory | 物件型錄與程序化幾何、道具 | Three.js, materials |
 | materials | 共用 PBR 材質、程序化地面 / 水波貼圖 | Three.js |
 | WeatherSystem | 時間、天空、天氣、陽光跟隨、天空環境貼圖 | Three.js, Player |
@@ -54,6 +56,8 @@
 - 調整數值改 `src/rules.ts` 並執行 `npm test`
 
 ### 碰撞檢測
+- 空心建築走 `worldLayout.buildingBoxes()` 與 `boxContact()`；顯示牆面與碰撞共用資料，不可退回整棟圓形障礙。物理每步最多 1/60 秒，避免穿牆。
+- 空心建築以 4% 包圍體積計算可吞食體積；調整體積或門洞時，必須驗證「室內長大到出不了門之前，已可吞下建築」。屋頂站立用 `getRollingHeight()`，進屋剖視只改顯示，不取消碰撞。
 - 判定：水平距離 < `size + userData.radius` 且垂直區間重疊
 - 吃的判定一律用 `canEat()`（物件體積 < 球體積 60%）
 - 比球大的物件累積推開方向，速度沿法線反彈；高速撞擊會 `knockOff()` 掉落物件
@@ -61,6 +65,8 @@
 - 物件位置直接讀 `obj.position`（區塊 Group 在原點），不需要 `getWorldPosition()`
 
 ### 區塊管理
+- `worldLayout.planBlock()` 以每局 seed、座標及世界級別產生用途一致的街區；`slot` 防止補貨重疊。道路與平整建地共用 `getTerrainHeight()`，不可另做與玩家物理不一致的地面。
+- 車輛與行人沿 `route` 活動，牲畜留在所屬院落；切換世界級別時保留物件及其活動範圍，避免新建築覆蓋舊建築。
 - 區塊大小隨世界分級：100 → 400（5m）→ 1600（30m）→ 6400（150m），之後球每大 4 倍再 ×4，沒有上限；升級時重建全部區塊；地形與水位用 `terrainScale` 等比放大，改地形公式時要保持這個縮放
 - `destroyChunk()` 用 `userData.isGround` 識別地面，只 dispose 地面幾何；物件幾何是共用快取
 - 球體積翻倍時補貨並移除 < 8% size 的物件；離開 `populateRadius + 1` 的區塊清空物件

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { surface } from './materials';
+import { surface } from './materials.ts';
+import { buildingParts } from './Buildings.ts';
+import { BUILDINGS, type BuildingType } from './worldLayout.ts';
 
 type G = THREE.BufferGeometry;
 export type Motion = 'walk' | 'drive' | 'fly';
@@ -255,6 +257,23 @@ function roundTree(): G[] {
         for (let i = 0; i < 5; i++) parts.push(ball(0.2, P.coral, rnd(-1.6, 1.6), rnd(2.8, 4.8), rnd(1.2, 1.8), 6));
     }
     return parts;
+}
+
+function table(): G[] {
+    const parts = [box(2.4, 0.16, 1.3, P.wood, 0, 1.1, 0)];
+    for (const x of [-1, 1]) for (const z of [-0.45, 0.45]) parts.push(box(0.14, 1.1, 0.14, P.darkWood, x, 0.55, z));
+    return parts;
+}
+
+function chair(): G[] {
+    const parts = [box(0.8, 0.12, 0.8, P.teal, 0, 0.6, 0), box(0.8, 0.6, 0.12, P.teal, 0, 0.95, -0.35)];
+    for (const x of [-0.3, 0.3]) for (const z of [-0.3, 0.3]) parts.push(box(0.1, 0.6, 0.1, P.wood, x, 0.3, z));
+    return parts;
+}
+
+function bench(): G[] {
+    return [box(2.4, 0.15, 0.8, P.wood, 0, 0.7, 0), box(2.4, 0.6, 0.15, P.wood, 0, 1.05, -0.35),
+        box(0.2, 0.7, 0.7, P.ink, -0.9, 0.35, 0), box(0.2, 0.7, 0.7, P.ink, 0.9, 0.35, 0)];
 }
 
 function house(): G[] {
@@ -531,6 +550,9 @@ export const KINDS: readonly Kind[] = [
     { id: 'duck', name: '鴨子', emoji: '🦆', size: 0.8, motion: 'walk', build: duck },
     { id: 'cone', name: '三角錐', emoji: '🚧', size: 0.8, build: trafficCone },
     { id: 'crate', name: '木箱', emoji: '📦', size: 1.1, build: crate },
+    { id: 'table', name: '桌子', emoji: '🪑', size: 2.4, build: table },
+    { id: 'chair', name: '椅子', emoji: '🪑', size: 1.2, build: chair },
+    { id: 'bench', name: '公園長椅', emoji: '🪑', size: 2.4, build: bench },
     { id: 'bush', name: '灌木叢', emoji: '🌿', size: 1.6, build: bush },
     { id: 'mailbox', name: '郵筒', emoji: '📮', size: 1.4, build: mailbox },
     { id: 'sheep', name: '綿羊', emoji: '🐑', size: 1.6, motion: 'walk', build: sheep },
@@ -542,6 +564,10 @@ export const KINDS: readonly Kind[] = [
     { id: 'pine', name: '松樹', emoji: '🌲', size: 6.5, build: pineTree },
     { id: 'tree', name: '大樹', emoji: '🌳', size: 6.5, build: roundTree },
     { id: 'house', name: '小屋', emoji: '🏠', size: 6, build: house },
+    ...(['bakery', 'cafe', 'barn', 'warehouse', 'apartments'] as const).map((id: BuildingType) => ({
+        id, name: BUILDINGS[id].name, emoji: BUILDINGS[id].emoji,
+        size: Math.max(16.8, BUILDINGS[id].height), build: () => buildingParts(id),
+    })),
     { id: 'bus', name: '公車', emoji: '🚌', size: 8, motion: 'drive', build: bus },
     { id: 'ufo', name: '幽浮', emoji: '🛸', size: 14, motion: 'fly', sky: true, weight: 0.3, build: ufo },
     { id: 'cloud', name: '雲朵', emoji: '☁️', size: 22, sky: true, weight: 0.5, build: cloud },

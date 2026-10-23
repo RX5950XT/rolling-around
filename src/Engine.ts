@@ -70,7 +70,7 @@ export class Engine {
             antialias: true,
             powerPreference: "high-performance"
         });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setSize(window.innerWidth, window.innerHeight, false);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         this.renderer.toneMapping = THREE.NeutralToneMapping;
         this.renderer.toneMappingExposure = 1.1;
@@ -125,7 +125,7 @@ export class Engine {
         window.addEventListener('resize', () => {
             this.camera.aspect = window.innerWidth / window.innerHeight;
             this.camera.updateProjectionMatrix();
-            this.renderer.setSize(window.innerWidth, window.innerHeight);
+            this.renderer.setSize(window.innerWidth, window.innerHeight, false);
             this.composer.setSize(window.innerWidth, window.innerHeight);
         });
 
@@ -282,6 +282,7 @@ export class Engine {
 
         const intersects = this.raycaster.intersectObjects(this.scene.children, true);
         const hit = intersects.find(i => {
+            if (!i.object.visible) return false;
             // Flowers, cars and anything else shorter than the ball never block the view enough to move the camera.
             if ((i.object.userData.height ?? 0) < playerSize * 1.5) return false;
             let p: THREE.Object3D | null = i.object;

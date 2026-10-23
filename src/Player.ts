@@ -239,6 +239,8 @@ export class Player {
         this.floatTime += deltaTime;
         const floatY = waterLevel + this.size * (0.35 + Math.sin(this.floatTime * 2.2) * 0.04);
         const groundY = Math.max(terrainY, floatY);
+        // Walking off a roof starts a fall instead of snapping straight down to the street.
+        if (this.isGrounded && this.mesh.position.y > groundY + this.size * 0.5) this.isGrounded = false;
         if (!this.isGrounded) {
             this.verticalVelocity -= gravityFor(this.size) * deltaTime;
             this.mesh.position.y += this.verticalVelocity * deltaTime;
