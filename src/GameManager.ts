@@ -77,6 +77,7 @@ export class GameManager {
         document.getElementById('resume-btn')!.addEventListener('click', () => this.resumeGame());
         document.getElementById('pause-btn')!.addEventListener('click', () => this.pauseGame());
         document.getElementById('music-btn')!.addEventListener('click', () => this.toggleMusic());
+        this.initFullscreen();
         document.getElementById('finish-btn')!.addEventListener('click', () => this.endGame(false));
         // A fresh page is the simplest full reset of world, ball and audio graph.
         document.getElementById('restart-btn')!.addEventListener('click', () => {
@@ -119,6 +120,24 @@ export class GameManager {
         });
         window.addEventListener('blur', () => this.pauseGame());
         window.addEventListener('pagehide', () => { if (this.started && !this.ended) this.saveBest(); });
+    }
+
+    /** Phones only (desktop has F11 and pointer lock); hidden where the browser has no Fullscreen API, e.g. iPhone Safari. */
+    private initFullscreen() {
+        const button = document.getElementById('fullscreen-btn')!;
+        if (!this.isTouch || !document.fullscreenEnabled) {
+            button.remove();
+            return;
+        }
+        button.addEventListener('click', () => {
+            const change = document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+            change.catch(() => this.hud.hint('無法切換全螢幕', 1.5));
+        });
+        document.addEventListener('fullscreenchange', () => {
+            const on = document.fullscreenElement !== null;
+            button.setAttribute('aria-pressed', String(on));
+            button.setAttribute('aria-label', on ? '離開全螢幕' : '全螢幕');
+        });
     }
 
     private toggleMusic() {

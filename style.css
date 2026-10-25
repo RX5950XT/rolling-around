@@ -488,6 +488,9 @@ kbd.wide { padding: 0.25rem 0.6rem; }
 }
 
 .hud-btn svg { width: 22px; height: 22px; fill: currentColor; }
+.hud-btn .stroke-icon { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+#fullscreen-btn[aria-pressed="true"] .icon-enter,
+#fullscreen-btn[aria-pressed="false"] .icon-exit { display: none; }
 
 .eaten-card {
     display: flex;

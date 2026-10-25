@@ -116,6 +116,7 @@ Rolling Around 是一個基於 Three.js 的 3D 滾球收集遊戲（Katamari 風
 
 ### TouchControls.ts
 - 觸控裝置（`pointer: coarse`）：左半邊浮動搖桿、右半邊拖曳轉視角、跳躍按鈕（點）/ 衝刺按鈕（按住）
+- 全螢幕按鈕（暫停鍵下方，`GameManager.initFullscreen()`）：只在觸控裝置且支援 Fullscreen API 時出現（iPhone Safari 不支援，按鈕會移除）
 
 ## 資料流
 
