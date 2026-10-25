@@ -1,5 +1,5 @@
 import { KINDS, KIND_BY_ID, POWERUPS, type PowerupType } from './ObjectFactory';
-import { TITLES, titleIndex, titleProgress } from './rules';
+import { COMBO_WINDOW, TITLES, comboBonus, titleIndex, titleProgress } from './rules';
 
 const $ = (id: string) => document.getElementById(id)!;
 const FEED_MAX = 5;
@@ -54,11 +54,13 @@ export class HUD {
     private hintEl = $('hint');
 
     private lastSize = '';
+    private lastProgress = '';
     private lastTitle = -1;
     private lastClock = '';
     private lastFeed: { kind: string; li: HTMLLIElement; n: number; at: number } | null = null;
     private chips = new Map<PowerupType, HTMLElement>();
     private hintTimer = 0;
+    private bannerTimer = 0;
 
     public show(withTimer: boolean) {
         $('hud').classList.remove('hidden');
@@ -66,12 +68,14 @@ export class HUD {
     }
 
     public setSize(size: number) {
-        const text = formatSize(size);
-        if (text === this.lastSize) return;
-        this.lastSize = text;
-        this.sizeVal.textContent = text;
-        this.sizeUnitEl.textContent = sizeUnit(size);
-        this.progress.style.width = `${(titleProgress(size) * 100).toFixed(1)}%`;
+        const text = formatLength(size);
+        if (text !== this.lastSize) {
+            this.lastSize = text;
+            this.sizeVal.textContent = formatSize(size);
+            this.sizeUnitEl.textContent = sizeUnit(size);
+        }
+        const progress = `${(titleProgress(size) * 100).toFixed(1)}%`;
+        if (progress !== this.lastProgress) this.progress.style.width = this.lastProgress = progress;
         const i = titleIndex(size);
         if (i !== this.lastTitle) {
             this.lastTitle = i;
@@ -103,7 +107,8 @@ export class HUD {
     }
 
     public setCombo(n: number) {
-        this.combo.replaceChildren(el('span', 'x', `×${n}`), el('span', 'label', '連擊'));
+        $('combo-count').textContent = `×${n}`;
+        $('combo-label').textContent = `連擊 · 成長 +${Math.round((comboBonus(n) - 1) * 100)}%`;
         this.combo.classList.add('show');
         this.combo.classList.remove('bump');
         void this.combo.offsetWidth; // restart the pop animation
@@ -112,6 +117,19 @@ export class HUD {
 
     public hideCombo() {
         this.combo.classList.remove('show');
+    }
+
+    public setComboTime(seconds: number) {
+        $('combo-fill').style.transform = `scaleX(${Math.max(0, seconds / COMBO_WINDOW)})`;
+    }
+
+    public setSnack(kindId: string | undefined, distance = 0, angle = 0) {
+        const kind = kindId ? KIND_BY_ID.get(kindId) : undefined;
+        $('snack-guide').classList.toggle('hidden', !kind);
+        if (!kind) return;
+        $('snack-name').textContent = `${kind.emoji} ${kind.name}`;
+        $('snack-distance').textContent = formatLength(distance);
+        $('snack-arrow').style.transform = `rotate(${angle}rad)`;
     }
 
     /** "🐑 綿羊 ×3": repeated bites of the same kind merge into one line. */
@@ -149,6 +167,8 @@ export class HUD {
         const inner = el('div', 'inner');
         inner.append(el('div', 'big', big), el('div', 'sub', sub));
         this.bannerEl.replaceChildren(inner);
+        window.clearTimeout(this.bannerTimer);
+        this.bannerTimer = window.setTimeout(() => this.bannerEl.replaceChildren(), 2600);
     }
 
     public hint(text: string, seconds: number) {
@@ -206,13 +226,16 @@ export class HUD {
         const found = this.renderCollection($('pause-collection'), stats.collection);
         $('pause-found').textContent = `${found} / ${KINDS.length}`;
         $('pause-screen').classList.remove('hidden');
+        $('resume-btn').focus();
     }
 
     public hidePause() {
         $('pause-screen').classList.add('hidden');
     }
 
-    public showEnd(stats: RunStats, isRecord: boolean, best: number) {
+    public showEnd(stats: RunStats, isRecord: boolean, best: number, timedOut = true) {
+        this.hidePause();
+        $('end-heading').textContent = timedOut ? '時間到！' : '這一趟，收穫滿滿！';
         $('end-size').textContent = formatSize(stats.size);
         $('end-unit').textContent = sizeUnit(stats.size);
         $('end-title').textContent = isRecord ? TITLES[titleIndex(stats.size)].name : `${TITLES[titleIndex(stats.size)].name} · 最佳 ${formatLength(best)}`;
@@ -223,5 +246,6 @@ export class HUD {
         $('end-found').textContent = `${found}/${KINDS.length}`;
         $('hud').classList.add('hidden');
         $('end-screen').classList.remove('hidden');
+        $('again-btn').focus();
     }
 }

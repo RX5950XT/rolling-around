@@ -43,7 +43,7 @@ Rolling Around 是一個基於 Three.js 的 3D 滾球收集遊戲（Katamari 風
 - 自動降級：連續約 3 秒低於 40 fps 就永久關掉光暈、解析度降為 1x、陰影貼圖降為 1024（`autoQuality = false` 可停用，給自動化測試用）
 - `HemisphereLight`（夜晚補光為主）+ `DirectionalLight`（其 `target` 已加入場景，由 WeatherSystem 跟隨玩家）；白天的環境光來自 WeatherSystem 烘焙的天空環境貼圖
 - Pointer Lock 滑鼠視角（pitch clamped [0.05, PI/2.2]），Q/E 鍵轉視角
-- 鏡頭距離 `9 × size`、速度越快 FOV 越寬、`shake()` 撞擊震動（多個正弦疊加的平滑晃動，不是每幀亂跳）
+- 鏡頭距離 `9 × size`，但 size 以 1.6 倍分段（`ZOOM_STEP`）：兩段之間球在畫面上會明顯變大，跨段才平滑退鏡；速度越快 FOV 越寬、`shake()` 撞擊震動（多個正弦疊加的平滑晃動，不是每幀亂跳）
 - 鏡頭穩定：垂直方向平滑跟隨球（跳躍、彈跳、浮水不會晃鏡頭）；離地保護也是平滑抬升；滑鼠單次移動超過 250px 視為瀏覽器異常值直接丟掉；Pointer Lock 優先用 `unadjustedMovement`（原始滑鼠輸入）
 - 相機防穿牆：raycaster 只掃 layer 0（地面、水、天空、粒子在 `SCENERY_LAYER` 不參與），每 3 幀一次，只有高度 > 1.5 倍球半徑的物件才會把鏡頭拉近；拉近後停留 0.8 秒再慢慢退回，避免來回抽動
 - `panOf(point)`：世界座標 → 立體聲左右位置，給音效定位用
@@ -58,7 +58,7 @@ Rolling Around 是一個基於 Three.js 的 3D 滾球收集遊戲（Katamari 風
 - 落地：橡皮球式彈一下（衝擊 ×0.35，太小就停）；`takeLanding()` 回傳衝擊速度給 GameManager 做塵土 / 水花
 - 水：球是空心的，深水處浮在水面（約 1/3 沒入、輕微起伏），`waterDepth` 記錄沒入深度，泡水時最高速最多 −35%
 - 球體是條紋 Canvas 貼圖的亮面 `MeshPhysicalMaterial`（clearcoat），滾動清楚可見；道具期間 `setGlow` 發光
-- `attachObject`：物件貼到球面（`setLength(size*0.85)`），太小（< 10% size）直接吸收；最多保留 180 個，最舊的（埋最深的）移除
+- `attachObject`：物件朝外站在球面（底部在 0.8 × size、隨機轉向），太小（< 6% size，`ABSORB_RATIO`）直接吸收；球變大時黏著物跟著外移不會沉進球裡，縮到 6% 以下就吸收掉；最多保留 180 個，最舊的移除
 - `knockOff`：撞擊時掉落最近黏上的物件並扣回體積
 - 沒有大小上限（舊版卡在 500 m）
 
@@ -68,6 +68,7 @@ Rolling Around 是一個基於 Three.js 的 3D 滾球收集遊戲（Katamari 風
 - 升級不瞬移：`alignTerrain()` 在放大版地形裡挑一個「離水面相對高度」和球腳下一樣的位置（`terrainShift.x/z`），再整體抬高（`terrainShift.y`）讓球腳下的地面（浮水時是水面）高度完全不變；所有物件用 `detachAllObjects()` / `reattach()` 搬進新區塊並貼齊新地面，只有落進新湖裡的會消失
 - 渲染距離依鏡頭距離計算（2–5 塊），地面頂點色（沙灘 / 草地斑塊 / 高地）× 程序化細節貼圖（每段一格），水面只覆蓋已載入區塊，遠景草地墊底
 - 水面：低粗糙度 PBR + 會流動的程序化法線貼圖（每塊 16 格，整數格數讓水面跟著區塊格線移動時花紋不會跳）
+- `COSMIC_TIER`（7，約 38 km）起地面換成紫色月塵、沒有馬路、湖變星雲色，配合宇宙物件，巨球不再像在小鎮裡
 - 物件以群聚方式生成（球小時群聚半徑小、密度高；球所在區塊必有一群在身邊）
 - 球體積翻倍時附近區塊補貨，並移除 < 8% size 的物件；離開 `populateRadius + 1` 的區塊清空物件（回來時再補）
 - 每 8 幀依距離切換 `visible`（遠處小物件不畫）
@@ -85,10 +86,10 @@ Rolling Around 是一個基於 Three.js 的 3D 滾球收集遊戲（Katamari 風
 
 ### WeatherSystem.ts
 - 一天 4 分鐘（`timeSpeed = 0.1 hr/sec`，從 9 點開始），日夜平滑過渡
-- 漸層天空 shader（太陽 / 月亮光暈）+ 夜晚星空；霧色 = 地平線色，濃度依鏡頭距離與世界半徑（按比例平滑過渡：濃度會差好幾個數量級，線性插值會追不上）
+- 漸層天空 shader（太陽 / 月亮光暈）+ 夜晚星空；球 15 km → 38.4 km 時天空漸變成太空色、星星常駐；霧色 = 地平線色，濃度依鏡頭距離與世界半徑（按比例平滑過渡：濃度會差好幾個數量級，線性插值會追不上）
 - 太陽 / 月光跟隨玩家，陰影範圍隨球大小縮放
 - 環境光：用 `PMREMGenerator` 把當下的天空（加一塊草地色地面）烘焙成 `scene.environment`，遊戲時間每過約 3 秒或雨量變化才重烘（每次幾毫秒）
-- 每 35 秒 30% 機率下雨，雨量平滑漸變；雨絲跟著鏡頭；雨天 `weatherFrictionModifier` 最高 2.2（更滑）
+- 每 35 秒 30% 機率下雨（球 ≥ 15 km 進入太空後不下雨），雨量平滑漸變；雨絲跟著鏡頭；雨天 `weatherFrictionModifier` 最高 2.2（更滑）
 
 ### AudioManager.ts
 - 總線：乾聲 + 殘響（程序化 1.8 秒衝激響應）→ `DynamicsCompressor`，同時很多聲音也不會爆音

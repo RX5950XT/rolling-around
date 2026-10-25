@@ -5,6 +5,8 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SCENERY_LAYER } from './WorldManager';
 
+const ZOOM_STEP = 1.6;
+
 export class Engine {
     public scene: THREE.Scene;
     public camera: THREE.PerspectiveCamera;
@@ -35,6 +37,8 @@ export class Engine {
     private shakeAmount = 0;
     private shakeTime = 0;
     private camKeys = { left: false, right: false };
+    public inputEnabled = false;
+    private reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     public dirLight: THREE.DirectionalLight;
     public hemiLight: THREE.HemisphereLight;
@@ -114,6 +118,7 @@ export class Engine {
         });
 
         window.addEventListener('keydown', (e) => {
+            if (!this.inputEnabled) return;
             if (e.code === 'KeyQ') this.camKeys.left = true;
             if (e.code === 'KeyE') this.camKeys.right = true;
         });
@@ -121,6 +126,7 @@ export class Engine {
             if (e.code === 'KeyQ') this.camKeys.left = false;
             if (e.code === 'KeyE') this.camKeys.right = false;
         });
+        window.addEventListener('blur', () => this.resetInput());
 
         window.addEventListener('resize', () => {
             this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -170,9 +176,10 @@ export class Engine {
 
     public requestPointerLock() {
         // Automated browsers (Playwright/headless) must never lock: on Windows that clips the user's real cursor to the hidden viewport.
-        if (navigator.webdriver) return;
+        if (navigator.webdriver || !this.inputEnabled) return;
         if (this.isPointerLocked()) return;
         const el = this.renderer.domElement;
+        if (!el.requestPointerLock) return;
         const warn = (err: unknown) => console.warn('Pointer Lock request failed:', err);
         // Raw mouse input (no OS acceleration) also avoids the bogus-jump bug; not every browser supports it.
         el.requestPointerLock({ unadjustedMovement: true })?.catch(() => el.requestPointerLock()?.catch(warn));
@@ -198,13 +205,18 @@ export class Engine {
 
     /** Camera kick for impacts; strength ~0.2 (bump) to 1 (huge hit). */
     public shake(strength: number) {
+        if (this.reducedMotion.matches) return;
         this.shakeAmount = Math.max(this.shakeAmount, strength);
+    }
+
+    public resetInput() {
+        this.camKeys = { left: false, right: false };
     }
 
     private updateLens(deltaTime: number) {
         // Dynamic far plane: must outrun camera distance for big balls
         const farPlane = Math.max(4000, this.currentSize * 60);
-        const targetFov = 60 + Math.min(this.speedRatio, 1.8) * 8;
+        const targetFov = 60 + (this.reducedMotion.matches ? 0 : Math.min(this.speedRatio, 1.8) * 8);
         this.camera.fov += (targetFov - this.camera.fov) * Math.min(1, deltaTime * 3);
         this.camera.far = farPlane;
         this.camera.near = Math.max(0.3, this.currentSize * 0.1);
@@ -219,7 +231,8 @@ export class Engine {
     ) {
         if (isNaN(playerSize) || !isFinite(playerSize)) playerSize = this.targetSize;
 
-        this.targetSize = playerSize;
+        // Zoom out in steps of 1.6x: between steps the ball visibly swells on screen, then the camera pulls back.
+        this.targetSize = Math.pow(ZOOM_STEP, Math.round(Math.log(playerSize) / Math.log(ZOOM_STEP)));
         this.currentSize += (this.targetSize - this.currentSize) * Math.min(deltaTime * 3, 1);
         this.cameraAngle += ((this.camKeys.left ? 1 : 0) - (this.camKeys.right ? 1 : 0)) * 2.2 * deltaTime;
         this.updateLens(deltaTime);
@@ -282,12 +295,11 @@ export class Engine {
 
         const intersects = this.raycaster.intersectObjects(this.scene.children, true);
         const hit = intersects.find(i => {
-            if (!i.object.visible) return false;
             // Flowers, cars and anything else shorter than the ball never block the view enough to move the camera.
             if ((i.object.userData.height ?? 0) < playerSize * 1.5) return false;
             let p: THREE.Object3D | null = i.object;
             while (p) {
-                if (p.userData.isPlayer) return false;
+                if (!p.visible || p.userData.isPlayer) return false;
                 p = p.parent;
             }
             return true;

@@ -47,6 +47,8 @@ export class GameManager {
     private inWater = false;
     private wakeClock = 0;
     private bumpPoint = new THREE.Vector3();
+    private guideClock = 0;
+    private snack?: THREE.Object3D;
 
     private terrain = (x: number, z: number) => this.world.getTerrainHeight(x, z);
     private rollingSurface = (x: number, z: number) => this.world.getRollingHeight(x, z, this.player.mesh.position.y - this.player.size * 0.9);
@@ -75,8 +77,12 @@ export class GameManager {
         document.getElementById('resume-btn')!.addEventListener('click', () => this.resumeGame());
         document.getElementById('pause-btn')!.addEventListener('click', () => this.pauseGame());
         document.getElementById('music-btn')!.addEventListener('click', () => this.toggleMusic());
+        document.getElementById('finish-btn')!.addEventListener('click', () => this.endGame(false));
         // A fresh page is the simplest full reset of world, ball and audio graph.
-        document.getElementById('restart-btn')!.addEventListener('click', () => window.location.reload());
+        document.getElementById('restart-btn')!.addEventListener('click', () => {
+            this.saveBest();
+            window.location.reload();
+        });
         document.getElementById('again-btn')!.addEventListener('click', () => window.location.reload());
         this.showBestRecords();
 
@@ -111,6 +117,8 @@ export class GameManager {
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) this.pauseGame();
         });
+        window.addEventListener('blur', () => this.pauseGame());
+        window.addEventListener('pagehide', () => { if (this.started && !this.ended) this.saveBest(); });
     }
 
     private toggleMusic() {
@@ -168,6 +176,8 @@ export class GameManager {
         this.audio.init();
         this.isPaused = false;
         this.player.enabled = true;
+        this.engine.inputEnabled = true;
+        (document.activeElement as HTMLElement | null)?.blur();
         this.timer.reset();
         if (!this.isTouch) this.engine.requestPointerLock();
         this.hud.banner('出發！', mode === 'challenge' ? '4 分鐘內滾到最大' : '想滾多久就滾多久');
@@ -177,6 +187,9 @@ export class GameManager {
         if (!this.started || this.ended || this.isPaused) return;
         this.isPaused = true;
         this.player.enabled = false;
+        this.engine.inputEnabled = false;
+        this.player.resetInput();
+        this.engine.resetInput();
         this.touchControls?.reset();
         document.getElementById('touch-controls')!.classList.add('hidden');
         const music = document.getElementById('music-btn')!;
@@ -191,6 +204,10 @@ export class GameManager {
         if (!this.started || this.ended || !this.isPaused) return;
         this.isPaused = false;
         this.player.enabled = true;
+        this.engine.inputEnabled = true;
+        this.player.resetInput();
+        this.engine.resetInput();
+        (document.activeElement as HTMLElement | null)?.blur();
         if (this.isTouch) document.getElementById('touch-controls')!.classList.remove('hidden');
         this.hud.hidePause();
         this.timer.reset();
@@ -209,17 +226,22 @@ export class GameManager {
         }
     }
 
-    private endGame() {
+    private endGame(timedOut = true) {
+        if (!this.started || this.ended) return;
         this.ended = true;
         this.isPaused = true;
         this.player.enabled = false;
+        this.engine.inputEnabled = false;
+        this.player.resetInput();
+        this.engine.resetInput();
         this.touchControls?.reset();
         document.getElementById('touch-controls')!.classList.add('hidden');
         this.engine.exitPointerLock();
         this.audio.updateRollingSound(0, 1, this.player.size, 'ground');
+        this.audio.resume();
         this.audio.playEndSound();
         const [isRecord, best] = this.saveBest();
-        this.hud.showEnd(this.stats, isRecord, best);
+        this.hud.showEnd(this.stats, isRecord, best, timedOut);
     }
 
     // ---------- Collisions: eat what is smaller, bounce off what is bigger ----------
@@ -409,6 +431,7 @@ export class GameManager {
         this.bumpCooldown = Math.max(0, this.bumpCooldown - delta);
         if (this.comboClock <= 0) return;
         this.comboClock -= delta;
+        this.hud.setComboTime(this.comboClock);
         if (this.comboClock <= 0) {
             this.combo = 0;
             this.hud.hideCombo();
@@ -423,6 +446,28 @@ export class GameManager {
         if (after !== before && after <= 10 && after > 0) this.audio.playTickSound(after <= 3);
         this.hud.setTimer(this.timeLeft);
         if (this.timeLeft <= 0) this.endGame();
+    }
+
+    private updateGuide(delta: number) {
+        this.guideClock -= delta;
+        const p = this.player.mesh.position, size = this.player.size;
+        if (this.guideClock <= 0) {
+            this.guideClock = 0.25;
+            let nearest = (size * 40) ** 2;
+            this.snack = undefined;
+            for (const obj of this.world.collidables) {
+                const ud = obj.userData;
+                if (!obj.visible || ud.powerup || !canEat(ud.volume, this.player.volume)) continue;
+                if (obj.position.y > p.y + size || obj.position.y + ud.height < p.y - size * 3) continue;
+                const d = (obj.position.x - p.x) ** 2 + (obj.position.z - p.z) ** 2;
+                if (d < nearest) { nearest = d; this.snack = obj; }
+            }
+        }
+        const target = this.snack;
+        if (!target || !this.world.collidables.includes(target)) { this.hud.setSnack(undefined); return; }
+        const dx = target.position.x - p.x, dz = target.position.z - p.z;
+        const angle = Math.atan2(dx, -dz) + this.engine.cameraAngle;
+        this.hud.setSnack(target.userData.kind, Math.max(0, Math.hypot(dx, dz) - size - target.userData.radius), angle);
     }
 
     /** Splashes, wake rings and landing thuds: what the ball's contact with ground and water looks and sounds like. */
@@ -489,6 +534,7 @@ export class GameManager {
         this.hud.setSize(size);
         const stamina = this.player.staminaState;
         this.hud.setStamina(stamina.level, stamina.exhausted, this.player.sprinting);
+        this.updateGuide(delta);
         this.updateTimer(delta);
     }
 

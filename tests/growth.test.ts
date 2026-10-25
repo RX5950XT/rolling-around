@@ -5,11 +5,11 @@ import { KIND_BY_ID, ObjectFactory } from '../src/ObjectFactory.ts';
 import { canEat, chunkObjectCap, GROWTH_EFFICIENCY, sphereVolume } from '../src/rules.ts';
 
 test('regional landmarks can be eaten before the next world enlargement', () => {
-    for (const seed of [1, 42, 123, 9876]) for (const tier of [3, 4, 6, 9]) {
+    for (const seed of [1, 42, 123, 9876]) for (const tier of [3, 4, 6, 7, 9]) {
         const scale = 4 ** tier, nextRadius = 150 * 4 ** (tier - 2);
         for (const x of [-2, 0, 2]) {
             const { objects } = planBlock(seed, x, 0, tier);
-            for (const p of objects.filter(o => ['city', 'mountain'].includes(o.id))) {
+            for (const p of objects.filter(o => o.size >= 8)) {
                 const o = ObjectFactory.create(KIND_BY_ID.get(p.id)!, p.size * scale);
                 assert.ok(canEat(o.userData.volume, sphereVolume(nextRadius * 0.8)),
                     `${p.id} cannot be eaten before tier ${tier + 1}, seed ${seed}`);
@@ -19,9 +19,9 @@ test('regional landmarks can be eaten before the next world enlargement', () => 
 });
 
 test('regional starter food is reachable without overlapping an inedible landmark', () => {
-    for (const seed of [1, 42, 123, 9876]) for (let x = -3; x <= 3; x++) {
+    for (const seed of [1, 42, 123, 9876]) for (const tier of [3, 6, 7, 9]) for (let x = -3; x <= 3; x++) {
         const radius = 150 / 64;
-        const objects = planBlock(seed, x, 0, 3).objects.map(p => ({
+        const objects = planBlock(seed, x, 0, tier).objects.map(p => ({
             ...p, data: ObjectFactory.create(KIND_BY_ID.get(p.id)!, p.size).userData,
         }));
         const food = objects.filter(o => canEat(o.data.volume, sphereVolume(radius)));
@@ -35,7 +35,7 @@ test('regional starter food is reachable without overlapping an inedible landmar
 });
 
 test('a fresh neighbourhood supplies a continuous growth path through every tier', () => {
-    for (const seed of [1, 42, 123, 9876]) for (const tier of [0, 1, 2, 3, 4, 6, 9]) {
+    for (const seed of [1, 42, 123, 9876]) for (const tier of [0, 1, 2, 3, 4, 6, 7, 9]) {
         const scale = 4 ** tier;
         const start = [1, 5, 30][tier] ?? 150 * 4 ** (tier - 3);
         const next = [5, 30, 150][tier] ?? start * 4;

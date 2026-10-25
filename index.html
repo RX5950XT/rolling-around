@@ -46,7 +46,7 @@
                     <div><dt>右手滑動</dt><dd>轉動視角</dd></div>
                     <div><dt>跳躍／衝刺</dt><dd>點一下跳躍，按住衝刺</dd></div>
                 </dl>
-                <p class="tip">比你小的東西都吃得下。撞到太大的東西會掉東西喔！</p>
+                <p class="tip">先從水果和小物開始，長大再吞下整棟房子。連續收集，長得更快！</p>
             </div>
         </div>
 
@@ -54,7 +54,7 @@
             <div class="menu-card wide">
                 <h2>暫停中</h2>
                 <p class="subtitle" id="pause-summary"></p>
-                <button class="btn btn-ghost touch-only" id="music-btn" aria-pressed="true">音樂：開</button>
+                <button class="btn btn-ghost" id="music-btn" aria-pressed="true">音樂：開</button>
                 <div class="collection-head">
                     <h3>收集圖鑑</h3>
                     <span id="pause-found" class="count-pill"></span>
@@ -63,13 +63,14 @@
                 <div class="row-buttons">
                     <button class="btn btn-primary" id="resume-btn"><span class="btn-title">繼續滾動</span></button>
                     <button class="btn btn-ghost" id="restart-btn"><span class="btn-title">重新開始</span></button>
+                    <button class="btn btn-secondary" id="finish-btn"><span class="btn-title">結算這一局</span></button>
                 </div>
             </div>
         </div>
 
         <div id="end-screen" class="overlay hidden">
             <div class="menu-card wide">
-                <h2>時間到！</h2>
+                <h2 id="end-heading">時間到！</h2>
                 <div class="result">
                     <span class="result-size" id="end-size">0.00</span><span class="result-unit" id="end-unit">m</span>
                 </div>
@@ -102,14 +103,22 @@
             <div class="hud-right">
                 <div class="hud-row">
                     <div class="hud-card eaten-card"><span id="eaten-val" class="eaten-val">0</span><span class="eaten-label">件</span></div>
-                    <button id="pause-btn" class="hud-card hud-btn touch-only" aria-label="暫停">
+                    <button id="pause-btn" class="hud-card hud-btn" aria-label="暫停">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg>
                     </button>
                 </div>
                 <div id="powerups" class="powerups"></div>
             </div>
 
-            <div id="combo" class="combo" aria-live="polite"></div>
+            <div id="combo" class="combo" aria-live="polite">
+                <span id="combo-count" class="x"></span><span id="combo-label" class="label">連擊</span>
+                <div class="combo-track"><div id="combo-fill"></div></div>
+            </div>
+            <div id="snack-guide" class="snack-guide hidden">
+                <svg id="snack-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 14l8-3 8 3Z"/></svg>
+                <span><span class="snack-caption">附近可吃</span><strong id="snack-name"></strong></span>
+                <span id="snack-distance"></span>
+            </div>
             <ol id="feed" class="feed"></ol>
             <div id="banner" class="banner" aria-live="polite"></div>
             <div id="hint" class="hint"></div>

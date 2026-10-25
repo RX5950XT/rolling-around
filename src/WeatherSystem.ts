@@ -7,12 +7,16 @@ const smoothstep = (a: number, b: number, x: number) => {
     return t * t * (3 - 2 * t);
 };
 
+/** Sky starts turning to space here (fully space at the cosmic tier, 38.4 km); no rain from this size on. */
+const SPACE_START = 15000;
+
 const SKY = {
     dayTop: new THREE.Color(0x4fa3ec), dayHorizon: new THREE.Color(0xcdeeff),
     duskTop: new THREE.Color(0x6c74c9), duskHorizon: new THREE.Color(0xffb08a),
     nightTop: new THREE.Color(0x0b1230), nightHorizon: new THREE.Color(0x2b3a6c),
     rainTop: new THREE.Color(0x7f8ba0), rainHorizon: new THREE.Color(0xbcc6d2),
     sun: new THREE.Color(0xfff1d6), lowSun: new THREE.Color(0xffa36b), moon: new THREE.Color(0xb8c8ff),
+    spaceTop: new THREE.Color(0x070a24), spaceHorizon: new THREE.Color(0x4a3a8c),
     grass: new THREE.Color(0x9ccf86), nightGrass: new THREE.Color(0x2f4a52),
 };
 
@@ -186,6 +190,10 @@ export class WeatherSystem {
         this.top.lerp(SKY.duskTop, dusk * 0.35);
         this.top.lerp(SKY.rainTop, this.rainAmount * 0.75);
         this.horizon.lerp(SKY.rainHorizon, this.rainAmount * 0.7);
+        // Approaching the cosmic tier (38.4 km) the sky turns to space, so a planet-sized ball no longer looks like a town.
+        const space = smoothstep(SPACE_START, 38400, this.player.size);
+        this.top.lerp(SKY.spaceTop, space * 0.9);
+        this.horizon.lerp(SKY.spaceHorizon, space * 0.75);
 
         const u = this.skyUniforms;
         u.uTop.value.copy(this.top);
@@ -202,7 +210,7 @@ export class WeatherSystem {
         this.sky.scale.setScalar(r);
         this.stars.position.copy(cam);
         this.stars.scale.setScalar(r * 0.95);
-        (this.stars.material as THREE.PointsMaterial).opacity = smoothstep(0.4, 0.9, this.nightFactor) * (1 - this.rainAmount);
+        (this.stars.material as THREE.PointsMaterial).opacity = Math.max(space, smoothstep(0.4, 0.9, this.nightFactor) * (1 - this.rainAmount));
     }
 
     /** Sun (or moon) light follows the player so shadows exist everywhere, scaled to the ball. */
@@ -260,6 +268,7 @@ export class WeatherSystem {
             this.isRaining = Math.random() < 0.3;
             if (this.isRaining) this.scene.add(this.rain);
         }
+        if (this.player.size >= SPACE_START) this.isRaining = false; // no clouds up in space: a shower fades out
 
         const target = this.isRaining ? 1 : 0;
         this.rainAmount += (target - this.rainAmount) * Math.min(1, deltaTime * 0.6);

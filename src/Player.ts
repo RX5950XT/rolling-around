@@ -2,11 +2,13 @@ import * as THREE from 'three';
 import {
     BALL_FRICTION, GRIP, SLOPE_HOLD, SPRINT_BOOST, accelerationFor, gravityFor, jumpVelocity, radiusFromVolume, sphereVolume,
     stepStamina, topSpeed, type Stamina,
-} from './rules';
+} from './rules.ts';
 
 const UP = new THREE.Vector3(0, 1, 0);
 /** Attached objects beyond this are buried deep inside the ball; drop the oldest to keep the scene light. */
 const MAX_ATTACHED = 180;
+/** Stuck objects smaller than this fraction of the ball are too small to see: absorbed instead. */
+const ABSORB_RATIO = 0.06;
 
 export class Player {
     public mesh: THREE.Group;
@@ -46,7 +48,7 @@ export class Player {
     private stamina: Stamina = { level: 1, exhausted: false, rest: 0 };
 
     private keys: { [key: string]: boolean } = {};
-    private attached: THREE.Object3D[] = [];
+    private attached: { object: THREE.Object3D; growthVolume: number }[] = [];
 
     // Reusable temp vectors to avoid per-frame GC
     private _force = new THREE.Vector3();
@@ -110,6 +112,7 @@ export class Player {
 
     private initControls() {
         window.addEventListener('keydown', (e) => {
+            if (!this.enabled) return;
             this.keys[e.code] = true;
             if (e.code === 'Space') {
                 e.preventDefault();
@@ -117,11 +120,14 @@ export class Player {
             }
         });
         window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
-        window.addEventListener('blur', () => {
-            for (const key in this.keys) {
-                this.keys[key] = false;
-            }
-        });
+        window.addEventListener('blur', () => this.resetInput());
+    }
+
+    public resetInput() {
+        this.keys = {};
+        this.touchMove.set(0, 0);
+        this.touchSprint = false;
+        this.sprinting = false;
     }
 
     public attemptJump() {
@@ -274,9 +280,17 @@ export class Player {
 
     public grow(addedVolume: number) {
         if (isNaN(addedVolume) || !isFinite(addedVolume)) return;
+        const before = this.size;
         this.volume = Math.max(this.minVolume, this.volume + addedVolume);
         this.size = radiusFromVolume(this.volume);
         this.ballMesh.scale.setScalar(this.size);
+        // Stuck things ride the surface as the ball swells instead of sinking out of sight; specks get absorbed.
+        this.attached = this.attached.filter(({ object }) => {
+            if ((object.userData.size || 1) >= this.size * ABSORB_RATIO) return true;
+            object.removeFromParent();
+            return false;
+        });
+        for (const { object } of this.attached) object.position.multiplyScalar(this.size / before);
     }
 
     /** Glow tint for active power-ups (0 = none). */
@@ -288,18 +302,22 @@ export class Player {
     public attachObject(object: THREE.Object3D, growthVolume: number) {
         const objSize = object.userData.size || 1;
         // Too small to see once stuck on the ball: just absorb it.
-        if (objSize < this.size * 0.1) {
+        if (objSize < this.size * ABSORB_RATIO) {
             object.removeFromParent();
             this.grow(growthVolume);
             return;
         }
 
         this.mesh.attach(object);
-        // Pull it onto the surface; as the ball grows it gets buried like a real katamari.
-        object.position.setLength(this.size * 0.85);
+        // Stand it on the surface pointing outward (base slightly sunk), otherwise things picked up under the ball grow into it.
+        if (object.position.lengthSq() === 0) object.position.copy(UP);
+        const out = object.position.normalize();
+        object.quaternion.setFromUnitVectors(UP, out);
+        object.rotateY(Math.random() * Math.PI * 2);
+        object.position.multiplyScalar(this.size * 0.8);
         object.traverse(child => { child.userData.isPlayer = true; });
-        this.attached.push(object);
-        if (this.attached.length > MAX_ATTACHED) this.attached.shift()!.removeFromParent();
+        this.attached.push({ object, growthVolume });
+        if (this.attached.length > MAX_ATTACHED) this.attached.shift()!.object.removeFromParent();
         this.grow(growthVolume);
     }
 
@@ -307,9 +325,9 @@ export class Player {
     public knockOff(count: number): THREE.Vector3[] {
         const lost: THREE.Vector3[] = [];
         for (let i = 0; i < count && this.attached.length > 0; i++) {
-            const obj = this.attached.pop()!;
+            const { object: obj, growthVolume } = this.attached.pop()!;
             lost.push(obj.getWorldPosition(new THREE.Vector3()));
-            this.grow(-(obj.userData.volume || 0));
+            this.grow(-growthVolume);
             obj.removeFromParent();
         }
         return lost;

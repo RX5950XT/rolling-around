@@ -10,6 +10,9 @@ export interface Placement {
     route?: { minX: number; maxX: number; minZ: number; maxZ: number };
 }
 
+/** From this world tier on, the ball has outgrown the planet: cosmic objects, ground and sky. */
+export const COSMIC_TIER = 7;
+
 export type BuildingType = 'house' | 'bakery' | 'cafe' | 'barn' | 'warehouse' | 'apartments' | 'skyscraper';
 interface BuildingProfile {
     name: string; emoji: string; height: number; door: number; opening: number;
@@ -20,7 +23,7 @@ export const BUILDINGS: Record<BuildingType, BuildingProfile> = {
     house: { name: '住宅', emoji: '🏠', height: 7, door: 8, opening: 6.2, color: 0xfff4e0, roofColor: 0xe85d75, stepped: true,
         contents: [['table', 2.4], ['chair', 1.2], ['gift', 0.8], ['chair', 1.2]] },
     bakery: { name: '麵包店', emoji: '🥯', height: 7, door: 8, opening: 6.2, color: 0xffe08a, roofColor: 0xff8fab,
-        contents: [['donut', 0.6], ['donut', 0.8], ['crate', 1.1], ['table', 2.4]] },
+        contents: [['donut', 0.6], ['donut', 0.8], ['crate', 1.1], ['table', 2.4], ['candy', 0.4]] },
     cafe: { name: '咖啡館', emoji: '☕', height: 7, door: 8, opening: 6.2, color: 0x9be8c8, roofColor: 0x4ecdc4,
         contents: [['table', 2.4], ['chair', 1.2], ['donut', 0.6], ['chair', 1.2]] },
     barn: { name: '穀倉', emoji: '🌾', height: 9, door: 10, opening: 8.2, color: 0xe88575, roofColor: 0x7a5236, stepped: true,
@@ -59,7 +62,8 @@ const CONTENTS: Record<District, readonly [string, number][]> = {
     market: [['donut', 0.6], ['gift', 0.8], ['crate', 1.1], ['table', 2.4], ['chair', 1.2]],
     homes: [['chair', 1.2], ['table', 2.4], ['gift', 0.8]],
     farm: [['cow', 2.4], ['sheep', 1.6], ['crate', 1.1]],
-    park: [['flower', 0.5], ['bush', 1.6], ['tree', 6.5], ['bench', 2.4], ['duck', 0.8]],
+    park: [['flower', 0.5], ['bush', 1.6], ['tree', 6.5], ['bench', 2.4], ['duck', 0.8],
+        ['mushroom', 0.5], ['pebble', 0.4], ['snowman', 2.2], ['tent', 3.8]],
     depot: [['crate', 1.1], ['cone', 0.8]],
     city: [['chair', 1.2], ['table', 2.4], ['person', 1.8]],
 };
@@ -73,7 +77,7 @@ export function planBlock(seed: number, cx: number, cz: number, tier: number): {
         objects.push(p);
         return p;
     };
-    if (tier >= 3) return { district, objects: planRegion(district, random) };
+    if (tier >= 3) return { district, objects: planRegion(district, tier, random) };
     const types = DISTRICT_BUILDINGS[district];
     let lot = Math.floor(random() * Math.max(1, types.length));
     for (const x of [-24, 24]) for (const z of [-24, 24]) {
@@ -103,20 +107,30 @@ export function planBlock(seed: number, cx: number, cz: number, tier: number): {
 }
 
 /** Three reachable size steps; small buildings sit outside the landmark's footprint. */
-function planRegion(district: District, random: () => number): Placement[] {
+function planRegion(district: District, tier: number, random: () => number): Placement[] {
     const objects: Placement[] = [];
     const nature = district === 'park';
-    const small = nature ? ['pine', 'tree'] : ['house', 'bakery', 'cafe', 'warehouse', 'apartments'];
+    const cosmic = tier >= COSMIC_TIER;
+    const small = cosmic ? ['ufo', 'cloud', 'rocket']
+        : nature ? ['pine', 'tree'] : ['house', 'bakery', 'cafe', 'warehouse', 'apartments'];
+    const middle = cosmic ? ['moon', 'planet', 'island']
+        : nature ? ['pine', 'tree', 'rainbow', 'cloud'] : ['skyscraper', 'ferris', 'tower', 'ufo'];
+    const large = cosmic ? ['galaxy', 'sun', 'planet']
+        : nature ? ['mountain', 'volcano', 'range', 'tornado', 'island'] : ['city', 'castle', 'pyramid', 'rocket'];
+    const choose = (pool: readonly string[]) => pool[Math.floor(random() * pool.length)];
     for (const x of [-24, 24]) for (const z of [-24, 24]) {
-        objects.push({ id: nature ? 'mountain' : 'city', size: 8 + random() * 2, x, z, rotation: 0 });
+        objects.push({ id: x === -24 && z === -24 ? large[0] : choose(large), size: 8 + random() * 2, x, z, rotation: 0 });
         for (const [dx, dz] of [[-11, 0], [11, 0], [0, -11], [0, 11]]) {
-            objects.push({ id: nature ? 'pine' : 'skyscraper', size: 4 + random() * 2,
+            objects.push({ id: choose(middle), size: 4 + random() * 2,
                 x: x + dx, z: z + dz, rotation: 0 });
         }
         for (const dx of [-13, -8, 8, 13]) for (const dz of [-11, 11]) {
-            objects.push({ id: small[Math.floor(random() * small.length)], size: 1.8 + random() * 0.8,
+            objects.push({ id: choose(small), size: 1.8 + random() * 0.8,
                 x: x + dx, z: z + dz, rotation: random() * Math.PI * 2 });
         }
+    }
+    for (const p of objects) if (p.id === 'ufo') {
+        p.route = { minX: p.x - 1, maxX: p.x + 1, minZ: p.z - 1, maxZ: p.z + 1 };
     }
     return objects;
 }

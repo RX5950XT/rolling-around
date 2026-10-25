@@ -44,8 +44,24 @@ body.touch .feed { bottom: calc(var(--safe-bottom) + 158px); max-width: min(240p
 body.touch .feed li { max-width: 100%; font-size: 0.8rem; }
 body.touch .feed li:nth-last-child(n + 3) { display: none; }
 body.touch .hint { bottom: calc(var(--safe-bottom) + 132px); white-space: normal; max-width: 85%; text-align: center; }
-body.touch .banner { width: max-content; max-width: calc(100% - 32px); }
+body.touch .banner { top: calc(var(--safe-top) + 218px); width: max-content; max-width: calc(100% - 32px); }
 body.touch .banner .big { white-space: normal; }
+body.touch .snack-guide {
+    top: calc(var(--safe-top) + 132px);
+    bottom: auto;
+    left: var(--safe-side);
+    translate: none;
+    display: grid;
+    grid-template-columns: 24px 1fr;
+    width: 140px;
+    padding: 8px 10px;
+    gap: 2px 6px;
+    font-size: 0.8rem;
+}
+body.touch .snack-guide svg { width: 24px; height: 24px; grid-row: 1 / 3; }
+body.touch #snack-distance { grid-column: 2; }
+body.touch .combo { top: calc(var(--safe-top) + 132px); grid-template-columns: 1fr; max-width: 140px; text-align: right; }
+body.touch .combo .label { font-size: 0.7rem; }
 
 #touch-controls { position: absolute; inset: 0; }
 .joystick {
@@ -134,11 +150,11 @@ body.touch .banner .big { white-space: normal; }
     body.touch .eaten-card { padding: 12px 8px; }
     body.touch .hud-row { gap: 8px; }
     body.touch .banner .inner { padding: 12px 20px; }
-    body.touch .combo { top: calc(var(--safe-top) + 88px); }
     body.touch .combo .x { font-size: 1.5rem; }
 }
 
 @media (max-height: 500px) and (min-width: 561px) {
+    body.touch .snack-guide { top: auto; bottom: var(--safe-bottom); left: 50%; translate: -50% 0; }
     body.touch .menu-card { padding: 18px 24px; width: min(600px, 100%); }
     body.touch #start-screen .menu-card { display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; }
     body.touch #pause-screen .menu-card { display: grid; grid-template-columns: 1fr auto; column-gap: 16px; }

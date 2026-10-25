@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { BUILDINGS, buildingBoxes, boxContact, districtAt, planBlock, type BuildingType } from '../src/worldLayout.ts';
 import { createBuilding } from '../src/Buildings.ts';
+import { KINDS, KIND_BY_ID } from '../src/ObjectFactory.ts';
 import { canEat, sphereVolume } from '../src/rules.ts';
 
 const types = Object.keys(BUILDINGS) as BuildingType[];
@@ -33,7 +34,20 @@ test('growth changes the scene from shops to towers to regional towns and mounta
     assert.ok(planBlock(42, 0, 0, 1).objects.some(o => o.building && o.id === 'skyscraper'));
     const region = planBlock(42, 0, 0, 3).objects;
     assert.ok(region.some(o => o.id === 'city'));
-    assert.ok(region.every(o => ['city', 'skyscraper', 'mountain', 'pine', 'tree', ...types].includes(o.id)));
+    assert.ok(region.every(o => KIND_BY_ID.has(o.id) && !o.building));
+    assert.ok(planBlock(42, 0, 0, 7).objects.some(o => ['galaxy', 'sun', 'planet'].includes(o.id)));
+});
+
+test('every catalogue item has a place in the generated world, with space appearing only at giant scales', () => {
+    const found = new Set<string>();
+    for (let tier = 0; tier <= 9; tier++) for (let x = -5; x <= 5; x++) for (let z = -5; z <= 5; z++) {
+        for (const p of planBlock(42, x, z, tier).objects) {
+            found.add(p.id);
+            if (['moon', 'planet', 'sun', 'galaxy'].includes(p.id)) assert.ok(tier >= 7);
+            if (p.id === 'ufo') assert.ok(p.route, 'moving objects must stay in their neighbourhood');
+        }
+    }
+    assert.deepEqual([...found].sort(), KINDS.map(k => k.id).sort());
 });
 
 test('both doors and the central aisle are open for the starting ball', () => {

@@ -107,6 +107,20 @@ body.touch .desktop-only { display: none !important; }
 
 .menu-card.wide { width: min(640px, 100%); }
 
+/* Let the actual neighbourhood introduce the game. */
+#start-screen {
+    background: linear-gradient(90deg, rgba(255, 244, 248, 0.65), rgba(255, 244, 248, 0.08));
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+@media (min-width: 960px) {
+    #start-screen { justify-content: flex-start; padding-left: clamp(32px, 6vw, 120px); }
+    #start-screen .menu-card { width: 460px; align-items: flex-start; }
+    #start-screen h1 { font-size: 3.2rem; text-align: left; }
+    #start-screen .subtitle, #start-screen .tip { text-align: left; line-height: 1.6; }
+}
+
 @keyframes card-in {
     from { transform: translateY(28px) scale(0.96); opacity: 0; }
 }
@@ -466,6 +480,7 @@ kbd.wide { padding: 0.25rem 0.6rem; }
     display: grid;
     place-items: center;
     width: 48px;
+    min-height: 48px;
     border: none;
     color: var(--ink-2);
     pointer-events: auto;
@@ -516,7 +531,8 @@ kbd.wide { padding: 0.25rem 0.6rem; }
     position: absolute;
     right: var(--safe-right);
     top: 42%;
-    display: flex;
+    display: grid;
+    grid-template-columns: auto auto;
     align-items: baseline;
     gap: 0.35rem;
     padding: 0.4rem 1rem 0.5rem;
@@ -536,6 +552,28 @@ kbd.wide { padding: 0.25rem 0.6rem; }
 .combo.bump { animation: combo-pop 0.35s var(--ease-bounce); transform-origin: right center; }
 
 @keyframes combo-pop { 0% { scale: 1.2; } 100% { scale: 1; } }
+
+.combo-track { grid-column: 1 / -1; height: 4px; background: var(--pink-soft); border-radius: 4px; overflow: hidden; }
+#combo-fill { height: 100%; background: var(--pink-ink); transform-origin: left; }
+.snack-guide {
+    position: absolute;
+    left: 50%;
+    bottom: max(96px, calc(env(safe-area-inset-bottom) + 76px));
+    translate: -50% 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: calc(100% - 32px);
+    padding: 10px 16px;
+    border-radius: 16px;
+    background: var(--card);
+    box-shadow: var(--shadow);
+    font-size: 0.9rem;
+}
+.snack-guide svg { width: 28px; height: 28px; flex: none; fill: var(--teal-deep); }
+.snack-caption { display: block; color: var(--teal-deep); font-size: 0.7rem; margin-bottom: 2px; }
+.snack-guide strong { display: block; white-space: nowrap; }
+#snack-distance { color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .feed {
     position: absolute;
@@ -679,4 +717,5 @@ kbd.wide { padding: 0.25rem 0.6rem; }
     }
 
     .feed li { animation: none; }
+    .banner .inner { animation: none; }
 }

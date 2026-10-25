@@ -4,7 +4,7 @@ import { Player } from './Player';
 import { ObjectFactory, KIND_BY_ID, type PowerupType } from './ObjectFactory';
 import { groundDetailTexture, surface, waterNormalTexture } from './materials';
 import { canEat, chunkObjectCap, populateRadius } from './rules';
-import { districtAt, planBlock, type Placement, type SolidBox } from './worldLayout';
+import { COSMIC_TIER, districtAt, planBlock, type Placement, type SolidBox } from './worldLayout';
 import { createBuilding, updateBuildingRoof } from './Buildings';
 
 export const WATER_LEVEL = -4.6;
@@ -16,6 +16,11 @@ const SAND = new THREE.Color(0xf3dfa2);
 const GRASS_A = new THREE.Color(0xa3d96a);
 const GRASS_B = new THREE.Color(0x76c25e);
 const MEADOW = new THREE.Color(0xc4e57d);
+// Cosmic tiers: lilac moon dust instead of beaches and lawns.
+const DUST = new THREE.Color(0xd2c2ec);
+const ROCK_A = new THREE.Color(0x9a90d4);
+const ROCK_B = new THREE.Color(0x726cae);
+const HIGHLAND = new THREE.Color(0xc3b8ea);
 
 /** Rolling hills in tier-0 units (meters at the first tier): ±8 high, waves of ~125 m and ~300 m. */
 const baseHeight = (x: number, z: number) => Math.sin(x * 0.05) * Math.cos(z * 0.05) * 3 + Math.sin(x * 0.02 + z * 0.01) * 5;
@@ -128,6 +133,10 @@ export class WorldManager {
         this.alignTerrain(p.x, p.z, rel, anchor, floating);
         this.water.position.y = this.waterLevel;
         this.farGround.position.y = this.waterLevel - 0.6 * this.terrainScale;
+        if (this.cosmic) {
+            (this.water.material as THREE.MeshStandardMaterial).color.setHex(0x5b3fa8);
+            (this.farGround.material as THREE.MeshStandardMaterial).color.setHex(0x726cae);
+        }
         this.reattach(kept);
     }
 
@@ -272,13 +281,14 @@ export class WorldManager {
 
     /** Coordinates and height are in tier-0 units (divided by terrainScale). */
     private groundColor(x: number, z: number, h: number, out: THREE.Color) {
+        const cosmic = this.cosmic;
         if (h < WATER_LEVEL + 0.9) {
-            out.copy(SAND);
+            out.copy(cosmic ? DUST : SAND);
             return;
         }
         const patch = Math.sin(x * 0.013 + Math.cos(z * 0.011) * 2) * 0.5 + 0.5;
-        out.lerpColors(GRASS_A, GRASS_B, patch);
-        if (h > 5) out.lerp(MEADOW, Math.min(1, (h - 5) / 3));
+        out.lerpColors(cosmic ? ROCK_A : GRASS_A, cosmic ? ROCK_B : GRASS_B, patch);
+        if (h > 5) out.lerp(cosmic ? HIGHLAND : MEADOW, Math.min(1, (h - 5) / 3));
     }
 
     private generateChunk(cx: number, cz: number, key: string): THREE.Group {
@@ -316,7 +326,12 @@ export class WorldManager {
         return chunkGroup;
     }
 
+    private get cosmic(): boolean {
+        return this.worldTier >= COSMIC_TIER;
+    }
+
     private addStreets(chunk: THREE.Group, cx: number, cz: number) {
+        if (this.cosmic) return; // no roads and crosswalks between planets
         const k = this.terrainScale, S = this.chunkSize;
         const parts: THREE.BufferGeometry[] = [];
         const strip = (x: number, z: number, w: number, d: number, color: number, lift: number) => {
